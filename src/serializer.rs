@@ -353,13 +353,13 @@ where
 
     fn serialize_newtype_struct<T: ?Sized>(
         self,
-        name: &'static str,
+        _name: &'static str,
         value: &T,
     ) -> Result<Self::Ok, Self::Error>
     where
         T: Serialize,
     {
-        todo!()
+        value.serialize(&mut *self)
     }
 
     fn serialize_newtype_variant<T: ?Sized>(
@@ -903,5 +903,16 @@ mod tests {
         let addr = serializer.serialize_unit_variant("MyEnum", 100, "Value1").unwrap();
 
         assert_eq!(data.get_data().get(addr).unwrap(), &SimpleData::Number(SimpleNumber::Integer(100)));
+    }
+
+    #[test]
+    fn serialize_newtype_struct_as_value() {
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+        serializer.set_unit_struct_behavior(StructBehavior::IncludeTyping);
+
+        let addr = serializer.serialize_newtype_struct("MyType", &10).unwrap();
+
+        assert_eq!(data.get_data().get(addr).unwrap(), &SimpleData::Number(SimpleNumber::Integer(10)));
     }
 }
