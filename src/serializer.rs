@@ -7,36 +7,34 @@ use serde::ser::{
 };
 use serde::{ser, Serialize, Serializer};
 
-use garnish_traits::{GarnishLangRuntimeData};
+use garnish_traits::GarnishLangRuntimeData;
 
-pub trait GarnishNumberConversions: From<i8> {}
-
-impl<T> GarnishNumberConversions for T where T: From<i8> {}
-
-struct GarnishDataSerializer<'a, Data>
-where
-    Data: GarnishLangRuntimeData,
-    Data::Number: GarnishNumberConversions,
+pub trait GarnishNumberConversions:
+    From<i8>
+    + From<i16>
+    + From<i32>
+    + From<i64>
+    + From<u8>
+    + From<u16>
+    + From<u32>
+    + From<u64>
+    + From<f32>
+    + From<f64>
 {
-    data: &'a mut Data,
-    data_addr: Option<Data::Size>,
 }
 
-impl<'a, Data> GarnishDataSerializer<'a, Data>
-where
-    Data: GarnishLangRuntimeData,
-    Data::Number: GarnishNumberConversions,
+impl<T> GarnishNumberConversions for T where
+    T: From<i8>
+        + From<i16>
+        + From<i32>
+        + From<i64>
+        + From<u8>
+        + From<u16>
+        + From<u32>
+        + From<u64>
+        + From<f32>
+        + From<f64>
 {
-    pub fn new(data: &'a mut Data) -> Self {
-        GarnishDataSerializer {
-            data,
-            data_addr: None,
-        }
-    }
-
-    pub fn data_addr(&self) -> Option<Data::Size> {
-        self.data_addr
-    }
 }
 
 struct GarnishSerializationError<Data>
@@ -97,6 +95,44 @@ where
     }
 }
 
+struct GarnishDataSerializer<'a, Data>
+where
+    Data: GarnishLangRuntimeData,
+    Data::Number: GarnishNumberConversions,
+{
+    data: &'a mut Data,
+    data_addr: Option<Data::Size>,
+}
+
+impl<'a, Data> GarnishDataSerializer<'a, Data>
+where
+    Data: GarnishLangRuntimeData,
+    Data::Number: GarnishNumberConversions,
+{
+    pub fn new(data: &'a mut Data) -> Self {
+        GarnishDataSerializer {
+            data,
+            data_addr: None,
+        }
+    }
+
+    pub fn data_addr(&self) -> Option<Data::Size> {
+        self.data_addr
+    }
+
+    pub fn add_convertible_number<T>(
+        &mut self,
+        v: T,
+    ) -> Result<Data::Size, GarnishSerializationError<Data>>
+    where
+        Data::Number: From<T>,
+    {
+        self.data
+            .add_number(Data::Number::from(v))
+            .or_else(|e| Err(GarnishSerializationError::new(e)))
+    }
+}
+
 impl<'a, Data> Serializer for &'a mut GarnishDataSerializer<'a, Data>
 where
     Data: GarnishLangRuntimeData,
@@ -117,45 +153,43 @@ where
     }
 
     fn serialize_i8(self, v: i8) -> Result<Self::Ok, Self::Error> {
-        self.data
-            .add_number(Data::Number::from(v))
-            .or_else(|e| Err(GarnishSerializationError::new(e)))
+        self.add_convertible_number(v)
     }
 
     fn serialize_i16(self, v: i16) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.add_convertible_number(v)
     }
 
     fn serialize_i32(self, v: i32) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.add_convertible_number(v)
     }
 
     fn serialize_i64(self, v: i64) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.add_convertible_number(v)
     }
 
     fn serialize_u8(self, v: u8) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.add_convertible_number(v)
     }
 
     fn serialize_u16(self, v: u16) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.add_convertible_number(v)
     }
 
     fn serialize_u32(self, v: u32) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.add_convertible_number(v)
     }
 
     fn serialize_u64(self, v: u64) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.add_convertible_number(v)
     }
 
     fn serialize_f32(self, v: f32) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.add_convertible_number(v)
     }
 
     fn serialize_f64(self, v: f64) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.add_convertible_number(v)
     }
 
     fn serialize_char(self, v: char) -> Result<Self::Ok, Self::Error> {
@@ -443,7 +477,105 @@ mod tests {
         let addr = serializer.serialize_i8(125).unwrap();
 
         let num = data.get_data().get(addr).unwrap();
-
         assert_eq!(num, &SimpleData::Number(SimpleNumber::Integer(125)));
+    }
+
+    #[test]
+    fn serialize_i16() {
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+
+        let addr = serializer.serialize_i16(125).unwrap();
+
+        let num = data.get_data().get(addr).unwrap();
+        assert_eq!(num, &SimpleData::Number(SimpleNumber::Integer(125)));
+    }
+
+    #[test]
+    fn serialize_i32() {
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+
+        let addr = serializer.serialize_i32(125).unwrap();
+
+        let num = data.get_data().get(addr).unwrap();
+        assert_eq!(num, &SimpleData::Number(SimpleNumber::Integer(125)));
+    }
+
+    #[test]
+    fn serialize_i64() {
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+
+        let addr = serializer.serialize_i64(125).unwrap();
+
+        let num = data.get_data().get(addr).unwrap();
+        assert_eq!(num, &SimpleData::Number(SimpleNumber::Integer(125)));
+    }
+
+    #[test]
+    fn serialize_u8() {
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+
+        let addr = serializer.serialize_u8(125).unwrap();
+
+        let num = data.get_data().get(addr).unwrap();
+        assert_eq!(num, &SimpleData::Number(SimpleNumber::Integer(125)));
+    }
+
+    #[test]
+    fn serialize_u16() {
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+
+        let addr = serializer.serialize_u16(125).unwrap();
+
+        let num = data.get_data().get(addr).unwrap();
+        assert_eq!(num, &SimpleData::Number(SimpleNumber::Integer(125)));
+    }
+
+    #[test]
+    fn serialize_u32() {
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+
+        let addr = serializer.serialize_u32(125).unwrap();
+
+        let num = data.get_data().get(addr).unwrap();
+        assert_eq!(num, &SimpleData::Number(SimpleNumber::Integer(125)));
+    }
+
+    #[test]
+    fn serialize_u64() {
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+
+        let addr = serializer.serialize_u64(125).unwrap();
+
+        let num = data.get_data().get(addr).unwrap();
+        assert_eq!(num, &SimpleData::Number(SimpleNumber::Integer(125)));
+    }
+
+    #[test]
+    fn serialize_f32() {
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+
+        let addr = serializer.serialize_f32(125.0).unwrap();
+
+        let num = data.get_data().get(addr).unwrap();
+        assert_eq!(num, &SimpleData::Number(SimpleNumber::Float(125.0)));
+    }
+
+    #[test]
+    fn serialize_f64() {
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+
+        let addr = serializer.serialize_f64(125.0).unwrap();
+
+        let num = data.get_data().get(addr).unwrap();
+        assert_eq!(num, &SimpleData::Number(SimpleNumber::Float(125.0)));
     }
 }
