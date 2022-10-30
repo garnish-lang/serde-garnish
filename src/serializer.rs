@@ -168,7 +168,7 @@ where
     data: &'a mut Data,
     data_addr: Option<Data::Size>,
     optional_behavior: OptionalBehavior,
-    unit_struct_behavior: StructBehavior,
+    struct_typing_behavior: StructBehavior,
     variant_name_behavior: VariantNameBehavior,
     struct_sym: Option<Data::Size>,
     pending_key: Option<Data::Size>,
@@ -188,7 +188,7 @@ where
             data,
             data_addr: None,
             optional_behavior: OptionalBehavior::Pair,
-            unit_struct_behavior: StructBehavior::ExcludeTyping,
+            struct_typing_behavior: StructBehavior::ExcludeTyping,
             variant_name_behavior: VariantNameBehavior::Full,
             struct_sym: None,
             pending_key: None,
@@ -217,7 +217,7 @@ where
     }
 
     pub fn set_unit_struct_behavior(&mut self, behavior: StructBehavior) {
-        self.unit_struct_behavior = behavior;
+        self.struct_typing_behavior = behavior;
     }
 
     pub fn set_variant_name_behavior(&mut self, behavior: VariantNameBehavior) {
@@ -225,7 +225,7 @@ where
     }
 
     fn end_struct_like(&mut self) -> Result<Data::Size, GarnishSerializationError<Data>> {
-        match (self.unit_struct_behavior, self.struct_sym) {
+        match (self.struct_typing_behavior, self.struct_sym) {
             (StructBehavior::IncludeTyping, Some(addr)) => {
                 let sym = self.data.parse_add_symbol(self.data_name_meta_key.as_str()).or_else(wrap_err)?;
                 let pair = self.data.add_pair((sym, addr)).or_else(wrap_err)?;
@@ -378,7 +378,7 @@ where
     }
 
     fn serialize_unit_struct(self, name: &'static str) -> Result<Self::Ok, Self::Error> {
-        match self.unit_struct_behavior {
+        match self.struct_typing_behavior {
             StructBehavior::ExcludeTyping => self.data.add_unit().or_else(wrap_err),
             StructBehavior::IncludeTyping => {
                 let name_addr = name.serialize(&mut *self)?;
