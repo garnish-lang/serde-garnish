@@ -6,8 +6,9 @@ use serde::ser::{
     SerializeTupleStruct, SerializeTupleVariant,
 };
 use serde::{ser, Serialize, Serializer};
+use garnish_data::symbol_value;
 
-use garnish_traits::GarnishLangRuntimeData;
+use garnish_traits::{GarnishLangRuntimeData, TypeConstants};
 
 pub trait GarnishNumberConversions:
     From<i8>
@@ -113,6 +114,12 @@ pub enum OptionalBehavior {
     UnitValue,
 }
 
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+pub enum StructBehavior {
+    ExcludeTyping,
+    IncludeTyping
+}
+
 struct GarnishDataSerializer<'a, Data>
 where
     Data: GarnishLangRuntimeData,
@@ -123,6 +130,7 @@ where
     data: &'a mut Data,
     data_addr: Option<Data::Size>,
     optional_behavior: OptionalBehavior,
+    unit_struct_behavior: StructBehavior,
 }
 
 impl<'a, Data> GarnishDataSerializer<'a, Data>
@@ -136,7 +144,8 @@ where
         GarnishDataSerializer {
             data,
             data_addr: None,
-            optional_behavior: OptionalBehavior::Pair
+            optional_behavior: OptionalBehavior::Pair,
+            unit_struct_behavior: StructBehavior::ExcludeTyping,
         }
     }
 
@@ -158,6 +167,10 @@ where
 
     pub fn set_optional_behavior(&mut self, behavior: OptionalBehavior) {
         self.optional_behavior = behavior;
+    }
+
+    pub fn set_unit_struct_behavior(&mut self, behavior: StructBehavior) {
+        self.unit_struct_behavior = behavior;
     }
 }
 
@@ -243,7 +256,9 @@ where
     fn serialize_str(self, v: &str) -> Result<Self::Ok, Self::Error> {
         self.data.start_char_list().or_else(wrap_err)?;
         for c in v.chars() {
-            self.data.add_to_char_list(Data::Char::from(c)).or_else(wrap_err)?;
+            self.data
+                .add_to_char_list(Data::Char::from(c))
+                .or_else(wrap_err)?;
         }
 
         self.data.end_char_list().or_else(wrap_err)
@@ -252,9 +267,11 @@ where
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok, Self::Error> {
         self.data.start_byte_list().or_else(wrap_err)?;
         for b in v {
-            self.data.add_to_byte_list(Data::Byte::from(*b)).or_else(wrap_err)?;
+            self.data
+                .add_to_byte_list(Data::Byte::from(*b))
+                .or_else(wrap_err)?;
         }
-        
+
         self.data.end_byte_list().or_else(wrap_err)
     }
 
@@ -294,7 +311,18 @@ where
     }
 
     fn serialize_unit_struct(self, name: &'static str) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        match self.unit_struct_behavior {
+            StructBehavior::ExcludeTyping => self.data.add_unit().or_else(wrap_err),
+            StructBehavior::IncludeTyping => {
+                let name_addr = name.serialize(&mut *self)?;
+                let sym = self.data.parse_add_symbol("__name__").or_else(wrap_err)?;
+                let pair = self.data.add_pair((sym, name_addr)).or_else(wrap_err)?;
+                self.data.start_list(Data::Size::one()).or_else(wrap_err)?;
+                self.data.add_to_list(pair, true).or_else(wrap_err)?;
+                self.data.end_list().or_else(wrap_err)
+            }
+        }
+
     }
 
     fn serialize_unit_variant(
@@ -560,9 +588,9 @@ mod tests {
     use serde::Serializer;
 
     use garnish_data::data::{SimpleData, SimpleNumber};
-    use garnish_data::{SimpleRuntimeData, symbol_value};
+    use garnish_data::{symbol_value, SimpleRuntimeData};
 
-    use crate::serializer::{GarnishDataSerializer, OptionalBehavior};
+    use crate::serializer::{GarnishDataSerializer, OptionalBehavior, StructBehavior};
 
     #[test]
     fn serialize_true() {
@@ -737,7 +765,10 @@ mod tests {
         let addr = serializer.serialize_none().unwrap();
 
         let (left, right) = data.get_data().get(addr).unwrap().as_pair().unwrap();
-        assert_eq!(data.get_data().get(left).unwrap(), &SimpleData::Symbol(symbol_value("none")));
+        assert_eq!(
+            data.get_data().get(left).unwrap(),
+            &SimpleData::Symbol(symbol_value("none"))
+        );
         assert_eq!(data.get_data().get(right).unwrap(), &SimpleData::Unit);
     }
 
@@ -750,8 +781,14 @@ mod tests {
 
         let (left, right) = data.get_data().get(addr).unwrap().as_pair().unwrap();
 
-        assert_eq!(data.get_data().get(left).unwrap(), &SimpleData::Symbol(symbol_value("some")));
-        assert_eq!(data.get_data().get(right).unwrap(), &SimpleData::Number(SimpleNumber::Integer(10)));
+        assert_eq!(
+            data.get_data().get(left).unwrap(),
+            &SimpleData::Symbol(symbol_value("some"))
+        );
+        assert_eq!(
+            data.get_data().get(right).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(10))
+        );
     }
 
     #[test]
@@ -773,7 +810,10 @@ mod tests {
 
         let addr = serializer.serialize_some(&10).unwrap();
 
-        assert_eq!(data.get_data().get(addr).unwrap(), &SimpleData::Number(SimpleNumber::Integer(10)));
+        assert_eq!(
+            data.get_data().get(addr).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(10))
+        );
     }
 
     #[test]
@@ -784,5 +824,35 @@ mod tests {
         let addr = serializer.serialize_unit().unwrap();
 
         assert_eq!(data.get_data().get(addr).unwrap(), &SimpleData::Unit);
+    }
+
+    #[test]
+    fn serialize_unit_struct_as_unit() {
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+
+        let addr = serializer.serialize_unit_struct("PhantomData").unwrap();
+
+        assert_eq!(data.get_data().get(addr).unwrap(), &SimpleData::Unit);
+    }
+
+    #[test]
+    fn serialize_unit_struct_as_list_with_name_key() {
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+        serializer.set_unit_struct_behavior(StructBehavior::IncludeTyping);
+
+        let addr = serializer.serialize_unit_struct("PhantomData").unwrap();
+
+        let list = data.get_data().get(addr).unwrap().as_list().unwrap().0;
+        let (left, right) = data
+            .get_data()
+            .get(*list.get(0).unwrap())
+            .unwrap()
+            .as_pair()
+            .unwrap();
+
+        assert_eq!(data.get_data().get(left).unwrap(), &SimpleData::Symbol(symbol_value("__name__")));
+        assert_eq!(data.get_data().get(right).unwrap(), &SimpleData::CharList("PhantomData".to_string()));
     }
 }
