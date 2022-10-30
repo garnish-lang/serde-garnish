@@ -129,8 +129,16 @@ where
     {
         self.data
             .add_number(Data::Number::from(v))
-            .or_else(|e| Err(GarnishSerializationError::new(e)))
+            .or_else(wrap_err)
     }
+}
+
+fn wrap_err<V, Data>(e: Data::Error) -> Result<V, GarnishSerializationError<Data>>
+where
+    Data: GarnishLangRuntimeData,
+    Data::Number: GarnishNumberConversions,
+{
+    Err(GarnishSerializationError::new(e))
 }
 
 impl<'a, Data> Serializer for &'a mut GarnishDataSerializer<'a, Data>
@@ -149,7 +157,10 @@ where
     type SerializeStructVariant = Self;
 
     fn serialize_bool(self, v: bool) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        match v {
+            true => self.data.add_true().or_else(wrap_err),
+            false => self.data.add_false().or_else(wrap_err),
+        }
     }
 
     fn serialize_i8(self, v: i8) -> Result<Self::Ok, Self::Error> {
@@ -468,6 +479,28 @@ mod tests {
     use garnish_data::SimpleRuntimeData;
 
     use crate::serializer::GarnishDataSerializer;
+
+    #[test]
+    fn serialize_true() {
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+
+        let addr = serializer.serialize_bool(true).unwrap();
+
+        let num = data.get_data().get(addr).unwrap();
+        assert_eq!(num, &SimpleData::True);
+    }
+
+    #[test]
+    fn serialize_false() {
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+
+        let addr = serializer.serialize_bool(false).unwrap();
+
+        let num = data.get_data().get(addr).unwrap();
+        assert_eq!(num, &SimpleData::False);
+    }
 
     #[test]
     fn serialize_i8() {
