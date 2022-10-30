@@ -1,11 +1,11 @@
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 
+use serde::{ser, Serialize, Serializer};
 use serde::ser::{
     SerializeMap, SerializeSeq, SerializeStruct, SerializeStructVariant, SerializeTuple,
     SerializeTupleStruct, SerializeTupleVariant,
 };
-use serde::{ser, Serialize, Serializer};
 
 use garnish_data::symbol_value;
 use garnish_traits::{GarnishLangRuntimeData, TypeConstants};
@@ -46,7 +46,8 @@ where
     Data::Char: From<char>,
     Data::Byte: From<u8>,
 {
-    err: Data::Error,
+    message: Option<String>,
+    err: Option<Data::Error>,
 }
 
 impl<Data> GarnishSerializationError<Data>
@@ -58,7 +59,20 @@ where
     Data::Byte: From<u8>,
 {
     pub fn new(err: Data::Error) -> Self {
-        Self { err }
+        Self { message: None, err: Some(err) }
+    }
+}
+
+impl<Data> From<&str> for GarnishSerializationError<Data>
+    where
+        Data: GarnishLangRuntimeData,
+        Data::Number: GarnishNumberConversions,
+        Data::Size: From<usize>,
+        Data::Char: From<char>,
+        Data::Byte: From<u8>,
+{
+    fn from(s: &str) -> Self {
+        Self { message: Some(s.to_string()), err: None }
     }
 }
 
@@ -84,7 +98,7 @@ where
     Data::Byte: From<u8>,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(format!("{}", self.err).as_str())
+        f.write_str(format!("{:?}", self.err).as_str())
     }
 }
 
@@ -146,6 +160,7 @@ where
     optional_behavior: OptionalBehavior,
     unit_struct_behavior: StructBehavior,
     variant_name_behavior: VariantNameBehavior,
+    struct_sym: Option<Data::Size>,
 }
 
 impl<'a, Data> GarnishDataSerializer<'a, Data>
@@ -163,6 +178,7 @@ where
             optional_behavior: OptionalBehavior::Pair,
             unit_struct_behavior: StructBehavior::ExcludeTyping,
             variant_name_behavior: VariantNameBehavior::Full,
+            struct_sym: None
         }
     }
 
@@ -413,10 +429,7 @@ where
     }
 
     fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple, Self::Error> {
-        self.data
-            .start_list(Data::Size::from(len))
-            .or_else(wrap_err)?;
-        Ok(self)
+        self.serialize_seq(Some(len))
     }
 
     fn serialize_tuple_struct(
@@ -424,7 +437,8 @@ where
         name: &'static str,
         len: usize,
     ) -> Result<Self::SerializeTupleStruct, Self::Error> {
-        todo!()
+        self.struct_sym = Some(self.data.parse_add_symbol(name).or_else(wrap_err)?);
+        self.serialize_seq(Some(len))
     }
 
     fn serialize_tuple_variant(
@@ -613,11 +627,22 @@ where
     where
         T: Serialize,
     {
-        todo!()
+        let addr = value.serialize(&mut **self)?;
+        self.data.add_to_list(addr, false).or_else(wrap_err)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        match (self.unit_struct_behavior, self.struct_sym) {
+            (StructBehavior::IncludeTyping, Some(addr)) => {
+                let sym = self.data.parse_add_symbol("__data_name__").or_else(wrap_err)?;
+                let pair = self.data.add_pair((sym, addr)).or_else(wrap_err)?;
+                self.data.add_to_list(pair, true).or_else(wrap_err)?;
+            }
+            (StructBehavior::IncludeTyping, None) => Err(GarnishSerializationError::from("Set to include names, but no name was set when serializing tuple struct."))?,
+            // excluding name
+            _ => (),
+        }
+        self.data.end_list().or_else(wrap_err)
     }
 }
 
@@ -650,8 +675,8 @@ mod tests {
     use serde::ser::{SerializeMap, SerializeTuple};
     use serde::Serializer;
 
+    use garnish_data::{SimpleRuntimeData, symbol_value};
     use garnish_data::data::{SimpleData, SimpleNumber};
-    use garnish_data::{symbol_value, SimpleRuntimeData};
 
     use crate::serializer::{
         GarnishDataSerializer, OptionalBehavior, StructBehavior, VariantNameBehavior,
@@ -1076,10 +1101,10 @@ mod tests {
 mod compound {
     use serde::Serializer;
 
+    use garnish_data::{SimpleRuntimeData, symbol_value};
     use garnish_data::data::{SimpleData, SimpleNumber};
-    use garnish_data::SimpleRuntimeData;
 
-    use crate::serializer::GarnishDataSerializer;
+    use crate::serializer::{GarnishDataSerializer, StructBehavior};
 
     #[test]
     fn serialize_sequence() {
@@ -1140,6 +1165,85 @@ mod compound {
         assert_eq!(
             data.get_data().get(*list.get(2).unwrap()).unwrap(),
             &SimpleData::Number(SimpleNumber::Integer(300))
+        );
+    }
+
+    #[test]
+    fn serialize_tuple_struct_without_name() {
+        use serde::ser::SerializeTupleStruct;
+
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+
+        let mut serializer = serializer.serialize_tuple_struct("MyTuple", 3).unwrap();
+
+        serializer.serialize_field(&100).unwrap();
+        serializer.serialize_field(&200).unwrap();
+        serializer.serialize_field(&300).unwrap();
+
+        let addr = serializer.end().unwrap();
+
+        let list = data.get_data().get(addr).unwrap().as_list().unwrap().0;
+
+        assert_eq!(list.len(), 3);
+        assert_eq!(
+            data.get_data().get(*list.get(0).unwrap()).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(100))
+        );
+        assert_eq!(
+            data.get_data().get(*list.get(1).unwrap()).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(200))
+        );
+        assert_eq!(
+            data.get_data().get(*list.get(2).unwrap()).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(300))
+        );
+    }
+
+    #[test]
+    fn serialize_tuple_struct_with_name() {
+        use serde::ser::SerializeTupleStruct;
+
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+        serializer.set_unit_struct_behavior(StructBehavior::IncludeTyping);
+
+        let mut serializer = serializer.serialize_tuple_struct("MyTuple", 3).unwrap();
+
+        serializer.serialize_field(&100).unwrap();
+        serializer.serialize_field(&200).unwrap();
+        serializer.serialize_field(&300).unwrap();
+
+        let addr = serializer.end().unwrap();
+
+        let list = data.get_data().get(addr).unwrap().as_list().unwrap().0;
+
+        assert_eq!(
+            data.get_data().get(*list.get(0).unwrap()).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(100))
+        );
+        assert_eq!(
+            data.get_data().get(*list.get(1).unwrap()).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(200))
+        );
+        assert_eq!(
+            data.get_data().get(*list.get(2).unwrap()).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(300))
+        );
+
+        let (left, right) = data
+            .get_data()
+            .get(*list.get(3).unwrap())
+            .unwrap()
+            .as_pair()
+            .unwrap();
+        assert_eq!(
+            data.get_data().get(left).unwrap(),
+            &SimpleData::Symbol(symbol_value("__data_name__"))
+        );
+        assert_eq!(
+            data.get_data().get(right).unwrap(),
+            &SimpleData::Symbol(symbol_value("MyTuple"))
         );
     }
 }
