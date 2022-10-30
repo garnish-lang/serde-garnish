@@ -6,8 +6,8 @@ use serde::ser::{
     SerializeTupleStruct, SerializeTupleVariant,
 };
 use serde::{ser, Serialize, Serializer};
-use garnish_data::symbol_value;
 
+use garnish_data::symbol_value;
 use garnish_traits::{GarnishLangRuntimeData, TypeConstants};
 
 pub trait GarnishNumberConversions:
@@ -42,6 +42,7 @@ struct GarnishSerializationError<Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Size: From<usize>,
     Data::Char: From<char>,
     Data::Byte: From<u8>,
 {
@@ -52,6 +53,7 @@ impl<Data> GarnishSerializationError<Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Size: From<usize>,
     Data::Char: From<char>,
     Data::Byte: From<u8>,
 {
@@ -64,6 +66,7 @@ impl<Data> Debug for GarnishSerializationError<Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Size: From<usize>,
     Data::Char: From<char>,
     Data::Byte: From<u8>,
 {
@@ -76,6 +79,7 @@ impl<Data> Display for GarnishSerializationError<Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Size: From<usize>,
     Data::Char: From<char>,
     Data::Byte: From<u8>,
 {
@@ -88,6 +92,7 @@ impl<Data> Error for GarnishSerializationError<Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Size: From<usize>,
     Data::Char: From<char>,
     Data::Byte: From<u8>,
 {
@@ -97,6 +102,7 @@ impl<Data> ser::Error for GarnishSerializationError<Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Size: From<usize>,
     Data::Char: From<char>,
     Data::Byte: From<u8>,
 {
@@ -117,7 +123,7 @@ pub enum OptionalBehavior {
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub enum StructBehavior {
     ExcludeTyping,
-    IncludeTyping
+    IncludeTyping,
 }
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
@@ -131,6 +137,7 @@ struct GarnishDataSerializer<'a, Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Size: From<usize>,
     Data::Char: From<char>,
     Data::Byte: From<u8>,
 {
@@ -145,6 +152,7 @@ impl<'a, Data> GarnishDataSerializer<'a, Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Size: From<usize>,
     Data::Char: From<char>,
     Data::Byte: From<u8>,
 {
@@ -191,6 +199,7 @@ fn wrap_err<V, Data>(e: Data::Error) -> Result<V, GarnishSerializationError<Data
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Size: From<usize>,
     Data::Char: From<char>,
     Data::Byte: From<u8>,
 {
@@ -202,6 +211,7 @@ where
     'a: 'b,
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Size: From<usize>,
     Data::Char: From<char>,
     Data::Byte: From<u8>,
 {
@@ -328,14 +338,16 @@ where
             StructBehavior::ExcludeTyping => self.data.add_unit().or_else(wrap_err),
             StructBehavior::IncludeTyping => {
                 let name_addr = name.serialize(&mut *self)?;
-                let sym = self.data.parse_add_symbol("__data_name__").or_else(wrap_err)?;
+                let sym = self
+                    .data
+                    .parse_add_symbol("__data_name__")
+                    .or_else(wrap_err)?;
                 let pair = self.data.add_pair((sym, name_addr)).or_else(wrap_err)?;
                 self.data.start_list(Data::Size::one()).or_else(wrap_err)?;
                 self.data.add_to_list(pair, true).or_else(wrap_err)?;
                 self.data.end_list().or_else(wrap_err)
             }
         }
-
     }
 
     fn serialize_unit_variant(
@@ -346,8 +358,14 @@ where
     ) -> Result<Self::Ok, Self::Error> {
         match self.variant_name_behavior {
             VariantNameBehavior::Short => self.data.parse_add_symbol(variant).or_else(wrap_err),
-            VariantNameBehavior::Full => self.data.parse_add_symbol(format!("{}::{}", name, variant).as_str()).or_else(wrap_err),
-            VariantNameBehavior::Index => self.data.add_number(Data::Number::from(variant_index)).or_else(wrap_err),
+            VariantNameBehavior::Full => self
+                .data
+                .parse_add_symbol(format!("{}::{}", name, variant).as_str())
+                .or_else(wrap_err),
+            VariantNameBehavior::Index => self
+                .data
+                .add_number(Data::Number::from(variant_index))
+                .or_else(wrap_err),
         }
     }
 
@@ -377,13 +395,21 @@ where
         let sym = self.serialize_unit_variant(name, variant_index, variant)?;
         let value = value.serialize(&mut *self)?;
         let pair = self.data.add_pair((sym, value)).or_else(wrap_err)?;
-        self.data.add_to_list(pair, self.variant_name_behavior != VariantNameBehavior::Index).or_else(wrap_err)?;
+        self.data
+            .add_to_list(
+                pair,
+                self.variant_name_behavior != VariantNameBehavior::Index,
+            )
+            .or_else(wrap_err)?;
 
         self.data.end_list().or_else(wrap_err)
     }
 
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
-        todo!()
+        self.data
+            .start_list(Data::Size::from(len.unwrap_or(0)))
+            .or_else(wrap_err)?;
+        Ok(self)
     }
 
     fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple, Self::Error> {
@@ -436,6 +462,7 @@ where
     'a: 'b,
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Size: From<usize>,
     Data::Char: From<char>,
     Data::Byte: From<u8>,
 {
@@ -446,11 +473,12 @@ where
     where
         T: Serialize,
     {
-        todo!()
+        let addr = value.serialize(&mut **self)?;
+        self.data.add_to_list(addr, false).or_else(wrap_err)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.data.end_list().or_else(wrap_err)
     }
 }
 
@@ -459,6 +487,7 @@ where
     'a: 'b,
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Size: From<usize>,
     Data::Char: From<char>,
     Data::Byte: From<u8>,
 {
@@ -489,6 +518,7 @@ where
     'a: 'b,
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Size: From<usize>,
     Data::Char: From<char>,
     Data::Byte: From<u8>,
 {
@@ -516,6 +546,7 @@ where
     'a: 'b,
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Size: From<usize>,
     Data::Char: From<char>,
     Data::Byte: From<u8>,
 {
@@ -543,6 +574,7 @@ where
     'a: 'b,
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Size: From<usize>,
     Data::Char: From<char>,
     Data::Byte: From<u8>,
 {
@@ -566,6 +598,7 @@ where
     'a: 'b,
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Size: From<usize>,
     Data::Char: From<char>,
     Data::Byte: From<u8>,
 {
@@ -589,6 +622,7 @@ where
     'a: 'b,
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Size: From<usize>,
     Data::Char: From<char>,
     Data::Byte: From<u8>,
 {
@@ -609,12 +643,15 @@ where
 
 #[cfg(test)]
 mod tests {
+    use serde::ser::{SerializeMap, SerializeTuple};
     use serde::Serializer;
 
     use garnish_data::data::{SimpleData, SimpleNumber};
     use garnish_data::{symbol_value, SimpleRuntimeData};
 
-    use crate::serializer::{GarnishDataSerializer, OptionalBehavior, StructBehavior, VariantNameBehavior};
+    use crate::serializer::{
+        GarnishDataSerializer, OptionalBehavior, StructBehavior, VariantNameBehavior,
+    };
 
     #[test]
     fn serialize_true() {
@@ -876,8 +913,14 @@ mod tests {
             .as_pair()
             .unwrap();
 
-        assert_eq!(data.get_data().get(left).unwrap(), &SimpleData::Symbol(symbol_value("__data_name__")));
-        assert_eq!(data.get_data().get(right).unwrap(), &SimpleData::CharList("PhantomData".to_string()));
+        assert_eq!(
+            data.get_data().get(left).unwrap(),
+            &SimpleData::Symbol(symbol_value("__data_name__"))
+        );
+        assert_eq!(
+            data.get_data().get(right).unwrap(),
+            &SimpleData::CharList("PhantomData".to_string())
+        );
     }
 
     #[test]
@@ -885,9 +928,14 @@ mod tests {
         let mut data = SimpleRuntimeData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
-        let addr = serializer.serialize_unit_variant("MyEnum", 100, "Value1").unwrap();
+        let addr = serializer
+            .serialize_unit_variant("MyEnum", 100, "Value1")
+            .unwrap();
 
-        assert_eq!(data.get_data().get(addr).unwrap(), &SimpleData::Symbol(symbol_value("MyEnum::Value1")));
+        assert_eq!(
+            data.get_data().get(addr).unwrap(),
+            &SimpleData::Symbol(symbol_value("MyEnum::Value1"))
+        );
     }
 
     #[test]
@@ -896,9 +944,14 @@ mod tests {
         let mut serializer = GarnishDataSerializer::new(&mut data);
         serializer.set_variant_name_behavior(VariantNameBehavior::Short);
 
-        let addr = serializer.serialize_unit_variant("MyEnum", 100, "Value1").unwrap();
+        let addr = serializer
+            .serialize_unit_variant("MyEnum", 100, "Value1")
+            .unwrap();
 
-        assert_eq!(data.get_data().get(addr).unwrap(), &SimpleData::Symbol(symbol_value("Value1")));
+        assert_eq!(
+            data.get_data().get(addr).unwrap(),
+            &SimpleData::Symbol(symbol_value("Value1"))
+        );
     }
 
     #[test]
@@ -907,9 +960,14 @@ mod tests {
         let mut serializer = GarnishDataSerializer::new(&mut data);
         serializer.set_variant_name_behavior(VariantNameBehavior::Index);
 
-        let addr = serializer.serialize_unit_variant("MyEnum", 100, "Value1").unwrap();
+        let addr = serializer
+            .serialize_unit_variant("MyEnum", 100, "Value1")
+            .unwrap();
 
-        assert_eq!(data.get_data().get(addr).unwrap(), &SimpleData::Number(SimpleNumber::Integer(100)));
+        assert_eq!(
+            data.get_data().get(addr).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(100))
+        );
     }
 
     #[test]
@@ -920,7 +978,10 @@ mod tests {
 
         let addr = serializer.serialize_newtype_struct("MyType", &10).unwrap();
 
-        assert_eq!(data.get_data().get(addr).unwrap(), &SimpleData::Number(SimpleNumber::Integer(10)));
+        assert_eq!(
+            data.get_data().get(addr).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(10))
+        );
     }
 
     #[test]
@@ -928,7 +989,9 @@ mod tests {
         let mut data = SimpleRuntimeData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
-        let addr = serializer.serialize_newtype_variant("MyEnum", 100, "Value1", &200).unwrap();
+        let addr = serializer
+            .serialize_newtype_variant("MyEnum", 100, "Value1", &200)
+            .unwrap();
 
         let list = data.get_data().get(addr).unwrap().as_list().unwrap().0;
         let (left, right) = data
@@ -938,8 +1001,14 @@ mod tests {
             .as_pair()
             .unwrap();
 
-        assert_eq!(data.get_data().get(left).unwrap(), &SimpleData::Symbol(symbol_value("MyEnum::Value1")));
-        assert_eq!(data.get_data().get(right).unwrap(), &SimpleData::Number(SimpleNumber::Integer(200)));
+        assert_eq!(
+            data.get_data().get(left).unwrap(),
+            &SimpleData::Symbol(symbol_value("MyEnum::Value1"))
+        );
+        assert_eq!(
+            data.get_data().get(right).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(200))
+        );
     }
 
     #[test]
@@ -948,7 +1017,9 @@ mod tests {
         let mut serializer = GarnishDataSerializer::new(&mut data);
         serializer.set_variant_name_behavior(VariantNameBehavior::Short);
 
-        let addr = serializer.serialize_newtype_variant("MyEnum", 100, "Value1", &200).unwrap();
+        let addr = serializer
+            .serialize_newtype_variant("MyEnum", 100, "Value1", &200)
+            .unwrap();
 
         let list = data.get_data().get(addr).unwrap().as_list().unwrap().0;
         let (left, right) = data
@@ -958,8 +1029,14 @@ mod tests {
             .as_pair()
             .unwrap();
 
-        assert_eq!(data.get_data().get(left).unwrap(), &SimpleData::Symbol(symbol_value("Value1")));
-        assert_eq!(data.get_data().get(right).unwrap(), &SimpleData::Number(SimpleNumber::Integer(200)));
+        assert_eq!(
+            data.get_data().get(left).unwrap(),
+            &SimpleData::Symbol(symbol_value("Value1"))
+        );
+        assert_eq!(
+            data.get_data().get(right).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(200))
+        );
     }
 
     #[test]
@@ -968,7 +1045,9 @@ mod tests {
         let mut serializer = GarnishDataSerializer::new(&mut data);
         serializer.set_variant_name_behavior(VariantNameBehavior::Index);
 
-        let addr = serializer.serialize_newtype_variant("MyEnum", 100, "Value1", &200).unwrap();
+        let addr = serializer
+            .serialize_newtype_variant("MyEnum", 100, "Value1", &200)
+            .unwrap();
 
         let list = data.get_data().get(addr).unwrap().as_list().unwrap().0;
         let (left, right) = data
@@ -978,7 +1057,53 @@ mod tests {
             .as_pair()
             .unwrap();
 
-        assert_eq!(data.get_data().get(left).unwrap(), &SimpleData::Number(SimpleNumber::Integer(100)));
-        assert_eq!(data.get_data().get(right).unwrap(), &SimpleData::Number(SimpleNumber::Integer(200)));
+        assert_eq!(
+            data.get_data().get(left).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(100))
+        );
+        assert_eq!(
+            data.get_data().get(right).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(200))
+        );
+    }
+}
+
+#[cfg(test)]
+mod seq {
+    use serde::ser::SerializeSeq;
+    use serde::Serializer;
+
+    use garnish_data::data::{SimpleData, SimpleNumber};
+    use garnish_data::SimpleRuntimeData;
+
+    use crate::serializer::GarnishDataSerializer;
+
+    #[test]
+    fn serialize_sequence() {
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+
+        let mut serializer = serializer.serialize_seq(None).unwrap();
+
+        serializer.serialize_element(&100).unwrap();
+        serializer.serialize_element(&200).unwrap();
+        serializer.serialize_element(&300).unwrap();
+
+        let addr = serializer.end().unwrap();
+
+        let list = data.get_data().get(addr).unwrap().as_list().unwrap().0;
+
+        assert_eq!(
+            data.get_data().get(*list.get(0).unwrap()).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(100))
+        );
+        assert_eq!(
+            data.get_data().get(*list.get(1).unwrap()).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(200))
+        );
+        assert_eq!(
+            data.get_data().get(*list.get(2).unwrap()).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(300))
+        );
     }
 }
