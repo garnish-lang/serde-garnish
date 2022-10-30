@@ -372,7 +372,14 @@ where
     where
         T: Serialize,
     {
-        todo!()
+        self.data.start_list(Data::Size::one()).or_else(wrap_err)?;
+
+        let sym = self.serialize_unit_variant(name, variant_index, variant)?;
+        let value = value.serialize(&mut *self)?;
+        let pair = self.data.add_pair((sym, value)).or_else(wrap_err)?;
+        self.data.add_to_list(pair, self.variant_name_behavior != VariantNameBehavior::Index).or_else(wrap_err)?;
+
+        self.data.end_list().or_else(wrap_err)
     }
 
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
@@ -914,5 +921,64 @@ mod tests {
         let addr = serializer.serialize_newtype_struct("MyType", &10).unwrap();
 
         assert_eq!(data.get_data().get(addr).unwrap(), &SimpleData::Number(SimpleNumber::Integer(10)));
+    }
+
+    #[test]
+    fn serialize_new_type_variant_full_name() {
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+
+        let addr = serializer.serialize_newtype_variant("MyEnum", 100, "Value1", &200).unwrap();
+
+        let list = data.get_data().get(addr).unwrap().as_list().unwrap().0;
+        let (left, right) = data
+            .get_data()
+            .get(*list.get(0).unwrap())
+            .unwrap()
+            .as_pair()
+            .unwrap();
+
+        assert_eq!(data.get_data().get(left).unwrap(), &SimpleData::Symbol(symbol_value("MyEnum::Value1")));
+        assert_eq!(data.get_data().get(right).unwrap(), &SimpleData::Number(SimpleNumber::Integer(200)));
+    }
+
+    #[test]
+    fn serialize_new_type_variant_short_name() {
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+        serializer.set_variant_name_behavior(VariantNameBehavior::Short);
+
+        let addr = serializer.serialize_newtype_variant("MyEnum", 100, "Value1", &200).unwrap();
+
+        let list = data.get_data().get(addr).unwrap().as_list().unwrap().0;
+        let (left, right) = data
+            .get_data()
+            .get(*list.get(0).unwrap())
+            .unwrap()
+            .as_pair()
+            .unwrap();
+
+        assert_eq!(data.get_data().get(left).unwrap(), &SimpleData::Symbol(symbol_value("Value1")));
+        assert_eq!(data.get_data().get(right).unwrap(), &SimpleData::Number(SimpleNumber::Integer(200)));
+    }
+
+    #[test]
+    fn serialize_new_type_variant_index() {
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+        serializer.set_variant_name_behavior(VariantNameBehavior::Index);
+
+        let addr = serializer.serialize_newtype_variant("MyEnum", 100, "Value1", &200).unwrap();
+
+        let list = data.get_data().get(addr).unwrap().as_list().unwrap().0;
+        let (left, right) = data
+            .get_data()
+            .get(*list.get(0).unwrap())
+            .unwrap()
+            .as_pair()
+            .unwrap();
+
+        assert_eq!(data.get_data().get(left).unwrap(), &SimpleData::Number(SimpleNumber::Integer(100)));
+        assert_eq!(data.get_data().get(right).unwrap(), &SimpleData::Number(SimpleNumber::Integer(200)));
     }
 }
