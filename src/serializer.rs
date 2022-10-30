@@ -41,6 +41,7 @@ struct GarnishSerializationError<Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Char: From<char>,
 {
     err: Data::Error,
 }
@@ -49,6 +50,7 @@ impl<Data> GarnishSerializationError<Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Char: From<char>,
 {
     pub fn new(err: Data::Error) -> Self {
         Self { err }
@@ -59,6 +61,7 @@ impl<Data> Debug for GarnishSerializationError<Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Char: From<char>,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(format!("{:?}", self.err).as_str())
@@ -69,6 +72,7 @@ impl<Data> Display for GarnishSerializationError<Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Char: From<char>,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(format!("{}", self.err).as_str())
@@ -79,6 +83,7 @@ impl<Data> Error for GarnishSerializationError<Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Char: From<char>,
 {
 }
 
@@ -86,6 +91,7 @@ impl<Data> ser::Error for GarnishSerializationError<Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Char: From<char>,
 {
     fn custom<T>(msg: T) -> Self
     where
@@ -99,6 +105,7 @@ struct GarnishDataSerializer<'a, Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Char: From<char>,
 {
     data: &'a mut Data,
     data_addr: Option<Data::Size>,
@@ -108,6 +115,7 @@ impl<'a, Data> GarnishDataSerializer<'a, Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Char: From<char>,
 {
     pub fn new(data: &'a mut Data) -> Self {
         GarnishDataSerializer {
@@ -137,6 +145,7 @@ fn wrap_err<V, Data>(e: Data::Error) -> Result<V, GarnishSerializationError<Data
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Char: From<char>,
 {
     Err(GarnishSerializationError::new(e))
 }
@@ -145,6 +154,7 @@ impl<'a, Data> Serializer for &'a mut GarnishDataSerializer<'a, Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Char: From<char>,
 {
     type Ok = Data::Size;
     type Error = GarnishSerializationError<Data>;
@@ -204,7 +214,7 @@ where
     }
 
     fn serialize_char(self, v: char) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.data.add_char(Data::Char::from(v)).or_else(wrap_err)
     }
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok, Self::Error> {
@@ -320,6 +330,7 @@ impl<'a, Data> SerializeSeq for &'a mut GarnishDataSerializer<'a, Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Char: From<char>,
 {
     type Ok = Data::Size;
     type Error = GarnishSerializationError<Data>;
@@ -340,6 +351,7 @@ impl<'a, Data> SerializeMap for &'a mut GarnishDataSerializer<'a, Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Char: From<char>,
 {
     type Ok = Data::Size;
     type Error = GarnishSerializationError<Data>;
@@ -367,6 +379,7 @@ impl<'a, Data> SerializeStruct for &'a mut GarnishDataSerializer<'a, Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Char: From<char>,
 {
     type Ok = Data::Size;
     type Error = GarnishSerializationError<Data>;
@@ -391,6 +404,7 @@ impl<'a, Data> SerializeStructVariant for &'a mut GarnishDataSerializer<'a, Data
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Char: From<char>,
 {
     type Ok = Data::Size;
     type Error = GarnishSerializationError<Data>;
@@ -415,6 +429,7 @@ impl<'a, Data> SerializeTuple for &'a mut GarnishDataSerializer<'a, Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Char: From<char>,
 {
     type Ok = Data::Size;
     type Error = GarnishSerializationError<Data>;
@@ -435,6 +450,7 @@ impl<'a, Data> SerializeTupleStruct for &'a mut GarnishDataSerializer<'a, Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Char: From<char>,
 {
     type Ok = Data::Size;
     type Error = GarnishSerializationError<Data>;
@@ -455,6 +471,7 @@ impl<'a, Data> SerializeTupleVariant for &'a mut GarnishDataSerializer<'a, Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
+    Data::Char: From<char>,
 {
     type Ok = Data::Size;
     type Error = GarnishSerializationError<Data>;
@@ -610,5 +627,16 @@ mod tests {
 
         let num = data.get_data().get(addr).unwrap();
         assert_eq!(num, &SimpleData::Number(SimpleNumber::Float(125.0)));
+    }
+
+    #[test]
+    fn serialize_char() {
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+
+        let addr = serializer.serialize_char('a').unwrap();
+
+        let num = data.get_data().get(addr).unwrap();
+        assert_eq!(num, &SimpleData::Char('a'));
     }
 }
