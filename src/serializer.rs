@@ -7,12 +7,16 @@ use serde::ser::{
 };
 use serde::{ser, Serialize, Serializer};
 
-use garnish_traits::{GarnishLangRuntimeData, TypeConstants};
+use garnish_traits::{GarnishLangRuntimeData};
+
+pub trait GarnishNumberConversions: From<i8> {}
+
+impl<T> GarnishNumberConversions for T where T: From<i8> {}
 
 struct GarnishDataSerializer<'a, Data>
 where
     Data: GarnishLangRuntimeData,
-    Data::Number: From<i8>,
+    Data::Number: GarnishNumberConversions,
 {
     data: &'a mut Data,
     data_addr: Option<Data::Size>,
@@ -21,7 +25,7 @@ where
 impl<'a, Data> GarnishDataSerializer<'a, Data>
 where
     Data: GarnishLangRuntimeData,
-    Data::Number: From<i8>,
+    Data::Number: GarnishNumberConversions,
 {
     pub fn new(data: &'a mut Data) -> Self {
         GarnishDataSerializer {
@@ -38,7 +42,7 @@ where
 struct GarnishSerializationError<Data>
 where
     Data: GarnishLangRuntimeData,
-    Data::Number: From<i8>,
+    Data::Number: GarnishNumberConversions,
 {
     err: Data::Error,
 }
@@ -46,7 +50,7 @@ where
 impl<Data> GarnishSerializationError<Data>
 where
     Data: GarnishLangRuntimeData,
-    Data::Number: From<i8>,
+    Data::Number: GarnishNumberConversions,
 {
     pub fn new(err: Data::Error) -> Self {
         Self { err }
@@ -56,7 +60,7 @@ where
 impl<Data> Debug for GarnishSerializationError<Data>
 where
     Data: GarnishLangRuntimeData,
-    Data::Number: From<i8>,
+    Data::Number: GarnishNumberConversions,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(format!("{:?}", self.err).as_str())
@@ -66,7 +70,7 @@ where
 impl<Data> Display for GarnishSerializationError<Data>
 where
     Data: GarnishLangRuntimeData,
-    Data::Number: From<i8>,
+    Data::Number: GarnishNumberConversions,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(format!("{}", self.err).as_str())
@@ -76,14 +80,14 @@ where
 impl<Data> Error for GarnishSerializationError<Data>
 where
     Data: GarnishLangRuntimeData,
-    Data::Number: From<i8>,
+    Data::Number: GarnishNumberConversions,
 {
 }
 
 impl<Data> ser::Error for GarnishSerializationError<Data>
 where
     Data: GarnishLangRuntimeData,
-    Data::Number: From<i8>,
+    Data::Number: GarnishNumberConversions,
 {
     fn custom<T>(msg: T) -> Self
     where
@@ -96,7 +100,7 @@ where
 impl<'a, Data> Serializer for &'a mut GarnishDataSerializer<'a, Data>
 where
     Data: GarnishLangRuntimeData,
-    Data::Number: From<i8>,
+    Data::Number: GarnishNumberConversions,
 {
     type Ok = Data::Size;
     type Error = GarnishSerializationError<Data>;
@@ -270,7 +274,7 @@ where
 impl<'a, Data> SerializeSeq for &'a mut GarnishDataSerializer<'a, Data>
 where
     Data: GarnishLangRuntimeData,
-    Data::Number: From<i8>,
+    Data::Number: GarnishNumberConversions,
 {
     type Ok = Data::Size;
     type Error = GarnishSerializationError<Data>;
@@ -290,7 +294,7 @@ where
 impl<'a, Data> SerializeMap for &'a mut GarnishDataSerializer<'a, Data>
 where
     Data: GarnishLangRuntimeData,
-    Data::Number: From<i8>,
+    Data::Number: GarnishNumberConversions,
 {
     type Ok = Data::Size;
     type Error = GarnishSerializationError<Data>;
@@ -317,7 +321,7 @@ where
 impl<'a, Data> SerializeStruct for &'a mut GarnishDataSerializer<'a, Data>
 where
     Data: GarnishLangRuntimeData,
-    Data::Number: From<i8>,
+    Data::Number: GarnishNumberConversions,
 {
     type Ok = Data::Size;
     type Error = GarnishSerializationError<Data>;
@@ -341,7 +345,7 @@ where
 impl<'a, Data> SerializeStructVariant for &'a mut GarnishDataSerializer<'a, Data>
 where
     Data: GarnishLangRuntimeData,
-    Data::Number: From<i8>,
+    Data::Number: GarnishNumberConversions,
 {
     type Ok = Data::Size;
     type Error = GarnishSerializationError<Data>;
@@ -365,7 +369,7 @@ where
 impl<'a, Data> SerializeTuple for &'a mut GarnishDataSerializer<'a, Data>
 where
     Data: GarnishLangRuntimeData,
-    Data::Number: From<i8>,
+    Data::Number: GarnishNumberConversions,
 {
     type Ok = Data::Size;
     type Error = GarnishSerializationError<Data>;
@@ -385,7 +389,7 @@ where
 impl<'a, Data> SerializeTupleStruct for &'a mut GarnishDataSerializer<'a, Data>
 where
     Data: GarnishLangRuntimeData,
-    Data::Number: From<i8>,
+    Data::Number: GarnishNumberConversions,
 {
     type Ok = Data::Size;
     type Error = GarnishSerializationError<Data>;
@@ -405,7 +409,7 @@ where
 impl<'a, Data> SerializeTupleVariant for &'a mut GarnishDataSerializer<'a, Data>
 where
     Data: GarnishLangRuntimeData,
-    Data::Number: From<i8>,
+    Data::Number: GarnishNumberConversions,
 {
     type Ok = Data::Size;
     type Error = GarnishSerializationError<Data>;
