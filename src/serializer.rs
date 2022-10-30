@@ -172,6 +172,7 @@ where
     variant_name_behavior: VariantNameBehavior,
     struct_sym: Option<Data::Size>,
     pending_key: Option<Data::Size>,
+    data_name_meta_key: String,
 }
 
 impl<'a, Data> GarnishDataSerializer<'a, Data>
@@ -191,6 +192,7 @@ where
             variant_name_behavior: VariantNameBehavior::Full,
             struct_sym: None,
             pending_key: None,
+            data_name_meta_key: String::from("__data_name__"),
         }
     }
 
@@ -225,7 +227,7 @@ where
     fn end_struct_like(&mut self) -> Result<Data::Size, GarnishSerializationError<Data>> {
         match (self.unit_struct_behavior, self.struct_sym) {
             (StructBehavior::IncludeTyping, Some(addr)) => {
-                let sym = self.data.parse_add_symbol("__data_name__").or_else(wrap_err)?;
+                let sym = self.data.parse_add_symbol(self.data_name_meta_key.as_str()).or_else(wrap_err)?;
                 let pair = self.data.add_pair((sym, addr)).or_else(wrap_err)?;
                 self.data.add_to_list(pair, true).or_else(wrap_err)?;
             }
@@ -382,7 +384,7 @@ where
                 let name_addr = name.serialize(&mut *self)?;
                 let sym = self
                     .data
-                    .parse_add_symbol("__data_name__")
+                    .parse_add_symbol(self.data_name_meta_key.as_str())
                     .or_else(wrap_err)?;
                 let pair = self.data.add_pair((sym, name_addr)).or_else(wrap_err)?;
                 self.data.start_list(Data::Size::one()).or_else(wrap_err)?;
@@ -966,6 +968,8 @@ mod tests {
     fn serialize_unit_struct_as_list_with_name_key() {
         let mut data = SimpleRuntimeData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
+        let data_key = serializer.data_name_meta_key.clone();
+
         serializer.set_unit_struct_behavior(StructBehavior::IncludeTyping);
 
         let addr = serializer.serialize_unit_struct("PhantomData").unwrap();
@@ -980,7 +984,7 @@ mod tests {
 
         assert_eq!(
             data.get_data().get(left).unwrap(),
-            &SimpleData::Symbol(symbol_value("__data_name__"))
+            &SimpleData::Symbol(symbol_value(data_key.as_str()))
         );
         assert_eq!(
             data.get_data().get(right).unwrap(),
@@ -1262,6 +1266,7 @@ mod compound {
 
         let mut data = SimpleRuntimeData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
+        let data_key = serializer.data_name_meta_key.clone();
         serializer.set_unit_struct_behavior(StructBehavior::IncludeTyping);
 
         let mut serializer = serializer.serialize_tuple_struct("MyStruct", 3).unwrap();
@@ -1315,7 +1320,7 @@ mod compound {
             .unwrap();
         assert_eq!(
             data.get_data().get(left).unwrap(),
-            &SimpleData::Symbol(symbol_value("__data_name__"))
+            &SimpleData::Symbol(symbol_value(data_key.as_str()))
         );
         assert_eq!(
             data.get_data().get(right).unwrap(),
@@ -1361,6 +1366,7 @@ mod compound {
 
         let mut data = SimpleRuntimeData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
+        let data_key = serializer.data_name_meta_key.clone();
         serializer.set_unit_struct_behavior(StructBehavior::IncludeTyping);
 
         let mut serializer = serializer.serialize_tuple_struct("MyTuple", 3).unwrap();
@@ -1394,7 +1400,7 @@ mod compound {
             .unwrap();
         assert_eq!(
             data.get_data().get(left).unwrap(),
-            &SimpleData::Symbol(symbol_value("__data_name__"))
+            &SimpleData::Symbol(symbol_value(data_key.as_str()))
         );
         assert_eq!(
             data.get_data().get(right).unwrap(),
@@ -1460,6 +1466,7 @@ mod compound {
 
         let mut data = SimpleRuntimeData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
+        let data_key = serializer.data_name_meta_key.clone();
         serializer.set_unit_struct_behavior(StructBehavior::IncludeTyping);
 
         let mut serializer = serializer.serialize_struct_variant("MyEnum", 100, "MyStruct", 3).unwrap();
@@ -1514,7 +1521,7 @@ mod compound {
             .unwrap();
         assert_eq!(
             data.get_data().get(left).unwrap(),
-            &SimpleData::Symbol(symbol_value("__data_name__"))
+            &SimpleData::Symbol(symbol_value(data_key.as_str()))
         );
         assert_eq!(
             data.get_data().get(right).unwrap(),
@@ -1528,6 +1535,7 @@ mod compound {
 
         let mut data = SimpleRuntimeData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
+        let data_key = serializer.data_name_meta_key.clone();
         serializer.set_unit_struct_behavior(StructBehavior::IncludeTyping);
         serializer.set_variant_name_behavior(VariantNameBehavior::Short);
 
@@ -1583,7 +1591,7 @@ mod compound {
             .unwrap();
         assert_eq!(
             data.get_data().get(left).unwrap(),
-            &SimpleData::Symbol(symbol_value("__data_name__"))
+            &SimpleData::Symbol(symbol_value(data_key.as_str()))
         );
         assert_eq!(
             data.get_data().get(right).unwrap(),
@@ -1597,6 +1605,7 @@ mod compound {
 
         let mut data = SimpleRuntimeData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
+        let data_key = serializer.data_name_meta_key.clone();
         serializer.set_unit_struct_behavior(StructBehavior::IncludeTyping);
         serializer.set_variant_name_behavior(VariantNameBehavior::Index);
 
@@ -1652,7 +1661,7 @@ mod compound {
             .unwrap();
         assert_eq!(
             data.get_data().get(left).unwrap(),
-            &SimpleData::Symbol(symbol_value("__data_name__"))
+            &SimpleData::Symbol(symbol_value(data_key.as_str()))
         );
         assert_eq!(
             data.get_data().get(right).unwrap(),
@@ -1698,6 +1707,7 @@ mod compound {
 
         let mut data = SimpleRuntimeData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
+        let data_key = serializer.data_name_meta_key.clone();
         serializer.set_unit_struct_behavior(StructBehavior::IncludeTyping);
 
         let mut serializer = serializer.serialize_tuple_variant("MyEnum", 100, "Type1", 3).unwrap();
@@ -1731,7 +1741,7 @@ mod compound {
             .unwrap();
         assert_eq!(
             data.get_data().get(left).unwrap(),
-            &SimpleData::Symbol(symbol_value("__data_name__"))
+            &SimpleData::Symbol(symbol_value(data_key.as_str()))
         );
         assert_eq!(
             data.get_data().get(right).unwrap(),
@@ -1745,6 +1755,7 @@ mod compound {
 
         let mut data = SimpleRuntimeData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
+        let data_key = serializer.data_name_meta_key.clone();
         serializer.set_unit_struct_behavior(StructBehavior::IncludeTyping);
         serializer.set_variant_name_behavior(VariantNameBehavior::Short);
 
@@ -1779,7 +1790,7 @@ mod compound {
             .unwrap();
         assert_eq!(
             data.get_data().get(left).unwrap(),
-            &SimpleData::Symbol(symbol_value("__data_name__"))
+            &SimpleData::Symbol(symbol_value(data_key.as_str()))
         );
         assert_eq!(
             data.get_data().get(right).unwrap(),
@@ -1793,6 +1804,7 @@ mod compound {
 
         let mut data = SimpleRuntimeData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
+        let data_key = serializer.data_name_meta_key.clone();
         serializer.set_unit_struct_behavior(StructBehavior::IncludeTyping);
         serializer.set_variant_name_behavior(VariantNameBehavior::Index);
 
@@ -1827,7 +1839,7 @@ mod compound {
             .unwrap();
         assert_eq!(
             data.get_data().get(left).unwrap(),
-            &SimpleData::Symbol(symbol_value("__data_name__"))
+            &SimpleData::Symbol(symbol_value(data_key.as_str()))
         );
         assert_eq!(
             data.get_data().get(right).unwrap(),
