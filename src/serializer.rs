@@ -413,7 +413,10 @@ where
     }
 
     fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple, Self::Error> {
-        todo!()
+        self.data
+            .start_list(Data::Size::from(len))
+            .or_else(wrap_err)?;
+        Ok(self)
     }
 
     fn serialize_tuple_struct(
@@ -585,11 +588,12 @@ where
     where
         T: Serialize,
     {
-        todo!()
+        let addr = value.serialize(&mut **self)?;
+        self.data.add_to_list(addr, false).or_else(wrap_err)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.data.end_list().or_else(wrap_err)
     }
 }
 
@@ -1069,8 +1073,7 @@ mod tests {
 }
 
 #[cfg(test)]
-mod seq {
-    use serde::ser::SerializeSeq;
+mod compound {
     use serde::Serializer;
 
     use garnish_data::data::{SimpleData, SimpleNumber};
@@ -1080,10 +1083,43 @@ mod seq {
 
     #[test]
     fn serialize_sequence() {
+        use serde::ser::SerializeSeq;
+
         let mut data = SimpleRuntimeData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let mut serializer = serializer.serialize_seq(None).unwrap();
+
+        serializer.serialize_element(&100).unwrap();
+        serializer.serialize_element(&200).unwrap();
+        serializer.serialize_element(&300).unwrap();
+
+        let addr = serializer.end().unwrap();
+
+        let list = data.get_data().get(addr).unwrap().as_list().unwrap().0;
+
+        assert_eq!(
+            data.get_data().get(*list.get(0).unwrap()).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(100))
+        );
+        assert_eq!(
+            data.get_data().get(*list.get(1).unwrap()).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(200))
+        );
+        assert_eq!(
+            data.get_data().get(*list.get(2).unwrap()).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(300))
+        );
+    }
+
+    #[test]
+    fn serialize_tuple() {
+        use serde::ser::SerializeTuple;
+
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+
+        let mut serializer = serializer.serialize_tuple(3).unwrap();
 
         serializer.serialize_element(&100).unwrap();
         serializer.serialize_element(&200).unwrap();
