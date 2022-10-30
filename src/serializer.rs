@@ -7,7 +7,6 @@ use serde::ser::{
     SerializeTupleStruct, SerializeTupleVariant,
 };
 
-use garnish_data::symbol_value;
 use garnish_traits::{GarnishLangRuntimeData, TypeConstants};
 
 pub trait GarnishNumberConversions:
@@ -124,7 +123,10 @@ where
     where
         T: Display,
     {
-        todo!()
+        Self {
+            message: Some(format!("{}", msg)),
+            err: None
+        }
     }
 }
 
@@ -161,6 +163,7 @@ where
     unit_struct_behavior: StructBehavior,
     variant_name_behavior: VariantNameBehavior,
     struct_sym: Option<Data::Size>,
+    pending_key: Option<Data::Size>,
 }
 
 impl<'a, Data> GarnishDataSerializer<'a, Data>
@@ -178,7 +181,8 @@ where
             optional_behavior: OptionalBehavior::Pair,
             unit_struct_behavior: StructBehavior::ExcludeTyping,
             variant_name_behavior: VariantNameBehavior::Full,
-            struct_sym: None
+            struct_sym: None,
+            pending_key: None,
         }
     }
 
@@ -467,7 +471,7 @@ where
     }
 
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
-        todo!()
+        self.serialize_seq(len)
     }
 
     fn serialize_struct(
@@ -530,18 +534,29 @@ where
     where
         T: Serialize,
     {
-        todo!()
+        let v = key.serialize(&mut **self)?;
+        // might not be a char list
+        // let data perform conversion
+        self.pending_key = Some(self.data.add_symbol_from(v).or_else(wrap_err)?);
+        Ok(())
     }
 
     fn serialize_value<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
     where
         T: Serialize,
     {
-        todo!()
+        match self.pending_key {
+            None => Err(GarnishSerializationError::from("No key when serializing value for map.")),
+            Some(key) => {
+                let val = value.serialize(&mut **self)?;
+                let pair = self.data.add_pair((key, val)).or_else(wrap_err)?;
+                self.data.add_to_list(pair, true).or_else(wrap_err)
+            }
+        }
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.data.end_list().or_else(wrap_err)
     }
 }
 
@@ -1425,6 +1440,62 @@ mod compound {
         assert_eq!(
             data.get_data().get(right).unwrap(),
             &SimpleData::Number(SimpleNumber::Integer(100))
+        );
+    }
+
+    #[test]
+    fn serialize_map() {
+        use serde::ser::SerializeMap;
+
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+        serializer.set_unit_struct_behavior(StructBehavior::IncludeTyping);
+        serializer.set_variant_name_behavior(VariantNameBehavior::Index);
+
+        let mut serializer = serializer.serialize_map(None).unwrap();
+
+        serializer.serialize_key("one").unwrap();
+        serializer.serialize_value(&100).unwrap();
+        serializer.serialize_key("two").unwrap();
+        serializer.serialize_value(&200).unwrap();
+        serializer.serialize_key("three").unwrap();
+        serializer.serialize_value(&300).unwrap();
+
+        let addr = serializer.end().unwrap();
+
+        let list = data.get_data().get(addr).unwrap().as_list().unwrap().0;
+
+        let (left, right) = data.get_data().get(*list.get(0).unwrap()).unwrap().as_pair().unwrap();
+
+        assert_eq!(
+            data.get_data().get(left).unwrap(),
+            &SimpleData::Symbol(symbol_value("one"))
+        );
+        assert_eq!(
+            data.get_data().get(right).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(100))
+        );
+
+        let (left, right) = data.get_data().get(*list.get(1).unwrap()).unwrap().as_pair().unwrap();
+
+        assert_eq!(
+            data.get_data().get(left).unwrap(),
+            &SimpleData::Symbol(symbol_value("two"))
+        );
+        assert_eq!(
+            data.get_data().get(right).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(200))
+        );
+
+        let (left, right) = data.get_data().get(*list.get(2).unwrap()).unwrap().as_pair().unwrap();
+
+        assert_eq!(
+            data.get_data().get(left).unwrap(),
+            &SimpleData::Symbol(symbol_value("three"))
+        );
+        assert_eq!(
+            data.get_data().get(right).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(300))
         );
     }
 }
