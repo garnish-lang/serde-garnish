@@ -290,7 +290,7 @@ where
     }
 
     fn serialize_unit(self) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.data.add_unit().or_else(wrap_err)
     }
 
     fn serialize_unit_struct(self, name: &'static str) -> Result<Self::Ok, Self::Error> {
@@ -774,5 +774,15 @@ mod tests {
         let addr = serializer.serialize_some(&10).unwrap();
 
         assert_eq!(data.get_data().get(addr).unwrap(), &SimpleData::Number(SimpleNumber::Integer(10)));
+    }
+
+    #[test]
+    fn serialize_unit() {
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+
+        let addr = serializer.serialize_unit().unwrap();
+
+        assert_eq!(data.get_data().get(addr).unwrap(), &SimpleData::Unit);
     }
 }
