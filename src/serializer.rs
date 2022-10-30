@@ -328,7 +328,7 @@ where
             StructBehavior::ExcludeTyping => self.data.add_unit().or_else(wrap_err),
             StructBehavior::IncludeTyping => {
                 let name_addr = name.serialize(&mut *self)?;
-                let sym = self.data.parse_add_symbol("__name__").or_else(wrap_err)?;
+                let sym = self.data.parse_add_symbol("__data_name__").or_else(wrap_err)?;
                 let pair = self.data.add_pair((sym, name_addr)).or_else(wrap_err)?;
                 self.data.start_list(Data::Size::one()).or_else(wrap_err)?;
                 self.data.add_to_list(pair, true).or_else(wrap_err)?;
@@ -869,7 +869,7 @@ mod tests {
             .as_pair()
             .unwrap();
 
-        assert_eq!(data.get_data().get(left).unwrap(), &SimpleData::Symbol(symbol_value("__name__")));
+        assert_eq!(data.get_data().get(left).unwrap(), &SimpleData::Symbol(symbol_value("__data_name__")));
         assert_eq!(data.get_data().get(right).unwrap(), &SimpleData::CharList("PhantomData".to_string()));
     }
 
