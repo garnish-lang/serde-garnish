@@ -37,7 +37,7 @@ impl<T> GarnishNumberConversions for T where
 {
 }
 
-struct GarnishSerializationError<Data>
+pub struct GarnishSerializationError<Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
@@ -59,6 +59,14 @@ where
 {
     pub fn new(err: Data::Error) -> Self {
         Self { message: None, err: Some(err) }
+    }
+
+    pub fn message(&self) -> Option<&String> {
+        self.message.as_ref()
+    }
+
+    pub fn error(&self) -> Option<&Data::Error> {
+        self.err.as_ref()
     }
 }
 
@@ -149,7 +157,7 @@ pub enum VariantNameBehavior {
     Index,
 }
 
-struct GarnishDataSerializer<'a, Data>
+pub struct GarnishDataSerializer<'a, Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
@@ -490,7 +498,8 @@ where
         variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
-        todo!()
+        self.struct_sym = Some(self.serialize_unit_variant(name, variant_index, variant)?);
+        self.serialize_seq(Some(len))
     }
 }
 
@@ -612,11 +621,14 @@ where
     where
         T: Serialize,
     {
-        todo!()
+        let k = self.data.parse_add_symbol(key).or_else(wrap_err)?;
+        let v = value.serialize(&mut **self)?;
+        let p = self.data.add_pair((k, v)).or_else(wrap_err)?;
+        self.data.add_to_list(p, true).or_else(wrap_err)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.end_struct_like()
     }
 }
 
@@ -697,7 +709,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use serde::ser::{SerializeMap, SerializeTuple};
     use serde::Serializer;
 
     use garnish_data::{SimpleRuntimeData, symbol_value};
@@ -1262,7 +1273,6 @@ mod compound {
         let addr = serializer.end().unwrap();
 
         let list = data.get_data().get(addr).unwrap().as_list().unwrap().0;
-        assert_eq!(list.len(), 4);
 
         let (left, right) = data.get_data().get(*list.get(0).unwrap()).unwrap().as_pair().unwrap();
 
@@ -1389,6 +1399,264 @@ mod compound {
         assert_eq!(
             data.get_data().get(right).unwrap(),
             &SimpleData::Symbol(symbol_value("MyTuple"))
+        );
+    }
+
+    #[test]
+    fn serialize_struct_variant_without_name() {
+        use serde::ser::SerializeStructVariant;
+
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+
+        let mut serializer = serializer.serialize_struct_variant("MyEnum", 100, "MyStruct", 3).unwrap();
+
+        serializer.serialize_field("one", &100).unwrap();
+        serializer.serialize_field("two", &200).unwrap();
+        serializer.serialize_field("three", &300).unwrap();
+
+        let addr = serializer.end().unwrap();
+
+        let list = data.get_data().get(addr).unwrap().as_list().unwrap().0;
+        assert_eq!(list.len(), 3);
+
+        let (left, right) = data.get_data().get(*list.get(0).unwrap()).unwrap().as_pair().unwrap();
+
+        assert_eq!(
+            data.get_data().get(left).unwrap(),
+            &SimpleData::Symbol(symbol_value("one"))
+        );
+        assert_eq!(
+            data.get_data().get(right).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(100))
+        );
+
+        let (left, right) = data.get_data().get(*list.get(1).unwrap()).unwrap().as_pair().unwrap();
+
+        assert_eq!(
+            data.get_data().get(left).unwrap(),
+            &SimpleData::Symbol(symbol_value("two"))
+        );
+        assert_eq!(
+            data.get_data().get(right).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(200))
+        );
+
+        let (left, right) = data.get_data().get(*list.get(2).unwrap()).unwrap().as_pair().unwrap();
+
+        assert_eq!(
+            data.get_data().get(left).unwrap(),
+            &SimpleData::Symbol(symbol_value("three"))
+        );
+        assert_eq!(
+            data.get_data().get(right).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(300))
+        );
+    }
+
+    #[test]
+    fn serialize_struct_variant_with_full_name() {
+        use serde::ser::SerializeStructVariant;
+
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+        serializer.set_unit_struct_behavior(StructBehavior::IncludeTyping);
+
+        let mut serializer = serializer.serialize_struct_variant("MyEnum", 100, "MyStruct", 3).unwrap();
+
+        serializer.serialize_field("one", &100).unwrap();
+        serializer.serialize_field("two", &200).unwrap();
+        serializer.serialize_field("three", &300).unwrap();
+
+        let addr = serializer.end().unwrap();
+
+        let list = data.get_data().get(addr).unwrap().as_list().unwrap().0;
+        assert_eq!(list.len(), 4);
+
+        let (left, right) = data.get_data().get(*list.get(0).unwrap()).unwrap().as_pair().unwrap();
+
+        assert_eq!(
+            data.get_data().get(left).unwrap(),
+            &SimpleData::Symbol(symbol_value("one"))
+        );
+        assert_eq!(
+            data.get_data().get(right).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(100))
+        );
+
+        let (left, right) = data.get_data().get(*list.get(1).unwrap()).unwrap().as_pair().unwrap();
+
+        assert_eq!(
+            data.get_data().get(left).unwrap(),
+            &SimpleData::Symbol(symbol_value("two"))
+        );
+        assert_eq!(
+            data.get_data().get(right).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(200))
+        );
+
+        let (left, right) = data.get_data().get(*list.get(2).unwrap()).unwrap().as_pair().unwrap();
+
+        assert_eq!(
+            data.get_data().get(left).unwrap(),
+            &SimpleData::Symbol(symbol_value("three"))
+        );
+        assert_eq!(
+            data.get_data().get(right).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(300))
+        );
+
+        let (left, right) = data
+            .get_data()
+            .get(*list.get(3).unwrap())
+            .unwrap()
+            .as_pair()
+            .unwrap();
+        assert_eq!(
+            data.get_data().get(left).unwrap(),
+            &SimpleData::Symbol(symbol_value("__data_name__"))
+        );
+        assert_eq!(
+            data.get_data().get(right).unwrap(),
+            &SimpleData::Symbol(symbol_value("MyEnum::MyStruct"))
+        );
+    }
+
+    #[test]
+    fn serialize_struct_variant_with_short_name() {
+        use serde::ser::SerializeStructVariant;
+
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+        serializer.set_unit_struct_behavior(StructBehavior::IncludeTyping);
+        serializer.set_variant_name_behavior(VariantNameBehavior::Short);
+
+        let mut serializer = serializer.serialize_struct_variant("MyEnum", 100, "MyStruct", 3).unwrap();
+
+        serializer.serialize_field("one", &100).unwrap();
+        serializer.serialize_field("two", &200).unwrap();
+        serializer.serialize_field("three", &300).unwrap();
+
+        let addr = serializer.end().unwrap();
+
+        let list = data.get_data().get(addr).unwrap().as_list().unwrap().0;
+        assert_eq!(list.len(), 4);
+
+        let (left, right) = data.get_data().get(*list.get(0).unwrap()).unwrap().as_pair().unwrap();
+
+        assert_eq!(
+            data.get_data().get(left).unwrap(),
+            &SimpleData::Symbol(symbol_value("one"))
+        );
+        assert_eq!(
+            data.get_data().get(right).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(100))
+        );
+
+        let (left, right) = data.get_data().get(*list.get(1).unwrap()).unwrap().as_pair().unwrap();
+
+        assert_eq!(
+            data.get_data().get(left).unwrap(),
+            &SimpleData::Symbol(symbol_value("two"))
+        );
+        assert_eq!(
+            data.get_data().get(right).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(200))
+        );
+
+        let (left, right) = data.get_data().get(*list.get(2).unwrap()).unwrap().as_pair().unwrap();
+
+        assert_eq!(
+            data.get_data().get(left).unwrap(),
+            &SimpleData::Symbol(symbol_value("three"))
+        );
+        assert_eq!(
+            data.get_data().get(right).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(300))
+        );
+
+        let (left, right) = data
+            .get_data()
+            .get(*list.get(3).unwrap())
+            .unwrap()
+            .as_pair()
+            .unwrap();
+        assert_eq!(
+            data.get_data().get(left).unwrap(),
+            &SimpleData::Symbol(symbol_value("__data_name__"))
+        );
+        assert_eq!(
+            data.get_data().get(right).unwrap(),
+            &SimpleData::Symbol(symbol_value("MyStruct"))
+        );
+    }
+
+    #[test]
+    fn serialize_struct_variant_with_index_name() {
+        use serde::ser::SerializeStructVariant;
+
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+        serializer.set_unit_struct_behavior(StructBehavior::IncludeTyping);
+        serializer.set_variant_name_behavior(VariantNameBehavior::Index);
+
+        let mut serializer = serializer.serialize_struct_variant("MyEnum", 100, "MyStruct", 3).unwrap();
+
+        serializer.serialize_field("one", &100).unwrap();
+        serializer.serialize_field("two", &200).unwrap();
+        serializer.serialize_field("three", &300).unwrap();
+
+        let addr = serializer.end().unwrap();
+
+        let list = data.get_data().get(addr).unwrap().as_list().unwrap().0;
+        assert_eq!(list.len(), 4);
+
+        let (left, right) = data.get_data().get(*list.get(0).unwrap()).unwrap().as_pair().unwrap();
+
+        assert_eq!(
+            data.get_data().get(left).unwrap(),
+            &SimpleData::Symbol(symbol_value("one"))
+        );
+        assert_eq!(
+            data.get_data().get(right).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(100))
+        );
+
+        let (left, right) = data.get_data().get(*list.get(1).unwrap()).unwrap().as_pair().unwrap();
+
+        assert_eq!(
+            data.get_data().get(left).unwrap(),
+            &SimpleData::Symbol(symbol_value("two"))
+        );
+        assert_eq!(
+            data.get_data().get(right).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(200))
+        );
+
+        let (left, right) = data.get_data().get(*list.get(2).unwrap()).unwrap().as_pair().unwrap();
+
+        assert_eq!(
+            data.get_data().get(left).unwrap(),
+            &SimpleData::Symbol(symbol_value("three"))
+        );
+        assert_eq!(
+            data.get_data().get(right).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(300))
+        );
+
+        let (left, right) = data
+            .get_data()
+            .get(*list.get(3).unwrap())
+            .unwrap()
+            .as_pair()
+            .unwrap();
+        assert_eq!(
+            data.get_data().get(left).unwrap(),
+            &SimpleData::Symbol(symbol_value("__data_name__"))
+        );
+        assert_eq!(
+            data.get_data().get(right).unwrap(),
+            &SimpleData::Number(SimpleNumber::Integer(100))
         );
     }
 
