@@ -120,6 +120,13 @@ pub enum StructBehavior {
     IncludeTyping
 }
 
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+pub enum VariantNameBehavior {
+    Short,
+    Full,
+    Index,
+}
+
 struct GarnishDataSerializer<'a, Data>
 where
     Data: GarnishLangRuntimeData,
@@ -131,6 +138,7 @@ where
     data_addr: Option<Data::Size>,
     optional_behavior: OptionalBehavior,
     unit_struct_behavior: StructBehavior,
+    variant_name_behavior: VariantNameBehavior,
 }
 
 impl<'a, Data> GarnishDataSerializer<'a, Data>
@@ -146,6 +154,7 @@ where
             data_addr: None,
             optional_behavior: OptionalBehavior::Pair,
             unit_struct_behavior: StructBehavior::ExcludeTyping,
+            variant_name_behavior: VariantNameBehavior::Full,
         }
     }
 
@@ -171,6 +180,10 @@ where
 
     pub fn set_unit_struct_behavior(&mut self, behavior: StructBehavior) {
         self.unit_struct_behavior = behavior;
+    }
+
+    pub fn set_variant_name_behavior(&mut self, behavior: VariantNameBehavior) {
+        self.variant_name_behavior = behavior;
     }
 }
 
@@ -331,7 +344,11 @@ where
         variant_index: u32,
         variant: &'static str,
     ) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        match self.variant_name_behavior {
+            VariantNameBehavior::Short => self.data.parse_add_symbol(variant).or_else(wrap_err),
+            VariantNameBehavior::Full => self.data.parse_add_symbol(format!("{}::{}", name, variant).as_str()).or_else(wrap_err),
+            VariantNameBehavior::Index => self.data.add_number(Data::Number::from(variant_index)).or_else(wrap_err),
+        }
     }
 
     fn serialize_newtype_struct<T: ?Sized>(
@@ -590,7 +607,7 @@ mod tests {
     use garnish_data::data::{SimpleData, SimpleNumber};
     use garnish_data::{symbol_value, SimpleRuntimeData};
 
-    use crate::serializer::{GarnishDataSerializer, OptionalBehavior, StructBehavior};
+    use crate::serializer::{GarnishDataSerializer, OptionalBehavior, StructBehavior, VariantNameBehavior};
 
     #[test]
     fn serialize_true() {
@@ -854,5 +871,37 @@ mod tests {
 
         assert_eq!(data.get_data().get(left).unwrap(), &SimpleData::Symbol(symbol_value("__name__")));
         assert_eq!(data.get_data().get(right).unwrap(), &SimpleData::CharList("PhantomData".to_string()));
+    }
+
+    #[test]
+    fn serialize_variant_full_name() {
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+
+        let addr = serializer.serialize_unit_variant("MyEnum", 100, "Value1").unwrap();
+
+        assert_eq!(data.get_data().get(addr).unwrap(), &SimpleData::Symbol(symbol_value("MyEnum::Value1")));
+    }
+
+    #[test]
+    fn serialize_variant_short_name() {
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+        serializer.set_variant_name_behavior(VariantNameBehavior::Short);
+
+        let addr = serializer.serialize_unit_variant("MyEnum", 100, "Value1").unwrap();
+
+        assert_eq!(data.get_data().get(addr).unwrap(), &SimpleData::Symbol(symbol_value("Value1")));
+    }
+
+    #[test]
+    fn serialize_variant_index() {
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+        serializer.set_variant_name_behavior(VariantNameBehavior::Index);
+
+        let addr = serializer.serialize_unit_variant("MyEnum", 100, "Value1").unwrap();
+
+        assert_eq!(data.get_data().get(addr).unwrap(), &SimpleData::Number(SimpleNumber::Integer(100)));
     }
 }
