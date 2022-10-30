@@ -42,6 +42,7 @@ where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
     Data::Char: From<char>,
+    Data::Byte: From<u8>,
 {
     err: Data::Error,
 }
@@ -51,6 +52,7 @@ where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
     Data::Char: From<char>,
+    Data::Byte: From<u8>,
 {
     pub fn new(err: Data::Error) -> Self {
         Self { err }
@@ -62,6 +64,7 @@ where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
     Data::Char: From<char>,
+    Data::Byte: From<u8>,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(format!("{:?}", self.err).as_str())
@@ -73,6 +76,7 @@ where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
     Data::Char: From<char>,
+    Data::Byte: From<u8>,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(format!("{}", self.err).as_str())
@@ -84,6 +88,7 @@ where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
     Data::Char: From<char>,
+    Data::Byte: From<u8>,
 {
 }
 
@@ -92,6 +97,7 @@ where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
     Data::Char: From<char>,
+    Data::Byte: From<u8>,
 {
     fn custom<T>(msg: T) -> Self
     where
@@ -106,6 +112,7 @@ where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
     Data::Char: From<char>,
+    Data::Byte: From<u8>,
 {
     data: &'a mut Data,
     data_addr: Option<Data::Size>,
@@ -116,6 +123,7 @@ where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
     Data::Char: From<char>,
+    Data::Byte: From<u8>,
 {
     pub fn new(data: &'a mut Data) -> Self {
         GarnishDataSerializer {
@@ -146,6 +154,7 @@ where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
     Data::Char: From<char>,
+    Data::Byte: From<u8>,
 {
     Err(GarnishSerializationError::new(e))
 }
@@ -155,6 +164,7 @@ where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
     Data::Char: From<char>,
+    Data::Byte: From<u8>,
 {
     type Ok = Data::Size;
     type Error = GarnishSerializationError<Data>;
@@ -218,11 +228,21 @@ where
     }
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.data.start_char_list().or_else(wrap_err)?;
+        for c in v.chars() {
+            self.data.add_to_char_list(Data::Char::from(c)).or_else(wrap_err)?;
+        }
+
+        self.data.end_char_list().or_else(wrap_err)
     }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.data.start_byte_list().or_else(wrap_err)?;
+        for b in v {
+            self.data.add_to_byte_list(Data::Byte::from(*b)).or_else(wrap_err)?;
+        }
+        
+        self.data.end_byte_list().or_else(wrap_err)
     }
 
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
@@ -331,6 +351,7 @@ where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
     Data::Char: From<char>,
+    Data::Byte: From<u8>,
 {
     type Ok = Data::Size;
     type Error = GarnishSerializationError<Data>;
@@ -352,6 +373,7 @@ where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
     Data::Char: From<char>,
+    Data::Byte: From<u8>,
 {
     type Ok = Data::Size;
     type Error = GarnishSerializationError<Data>;
@@ -380,6 +402,7 @@ where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
     Data::Char: From<char>,
+    Data::Byte: From<u8>,
 {
     type Ok = Data::Size;
     type Error = GarnishSerializationError<Data>;
@@ -405,6 +428,7 @@ where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
     Data::Char: From<char>,
+    Data::Byte: From<u8>,
 {
     type Ok = Data::Size;
     type Error = GarnishSerializationError<Data>;
@@ -430,6 +454,7 @@ where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
     Data::Char: From<char>,
+    Data::Byte: From<u8>,
 {
     type Ok = Data::Size;
     type Error = GarnishSerializationError<Data>;
@@ -451,6 +476,7 @@ where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
     Data::Char: From<char>,
+    Data::Byte: From<u8>,
 {
     type Ok = Data::Size;
     type Error = GarnishSerializationError<Data>;
@@ -472,6 +498,7 @@ where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
     Data::Char: From<char>,
+    Data::Byte: From<u8>,
 {
     type Ok = Data::Size;
     type Error = GarnishSerializationError<Data>;
@@ -638,5 +665,27 @@ mod tests {
 
         let num = data.get_data().get(addr).unwrap();
         assert_eq!(num, &SimpleData::Char('a'));
+    }
+
+    #[test]
+    fn serialize_str() {
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+
+        let addr = serializer.serialize_str("abcd").unwrap();
+
+        let num = data.get_data().get(addr).unwrap();
+        assert_eq!(num, &SimpleData::CharList("abcd".to_string()));
+    }
+
+    #[test]
+    fn serialize_byte() {
+        let mut data = SimpleRuntimeData::new();
+        let mut serializer = GarnishDataSerializer::new(&mut data);
+
+        let addr = serializer.serialize_bytes(&[1, 2, 3, 4]).unwrap();
+
+        let num = data.get_data().get(addr).unwrap();
+        assert_eq!(num, &SimpleData::ByteList(vec![1, 2, 3, 4]));
     }
 }
