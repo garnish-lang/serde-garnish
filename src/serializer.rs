@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 
-use serde::{ser, Serialize, Serializer};
+use serde::{de, ser, Serialize, Serializer};
 use serde::ser::{
     SerializeMap, SerializeSeq, SerializeStruct, SerializeStructVariant, SerializeTuple,
     SerializeTupleStruct, SerializeTupleVariant,
@@ -130,6 +130,25 @@ where
     fn custom<T>(msg: T) -> Self
     where
         T: Display,
+    {
+        Self {
+            message: Some(format!("{}", msg)),
+            err: None
+        }
+    }
+}
+
+impl<Data> de::Error for GarnishSerializationError<Data>
+    where
+        Data: GarnishLangRuntimeData,
+        Data::Number: GarnishNumberConversions,
+        Data::Size: From<usize>,
+        Data::Char: From<char>,
+        Data::Byte: From<u8>,
+{
+    fn custom<T>(msg: T) -> Self
+        where
+            T: Display,
     {
         Self {
             message: Some(format!("{}", msg)),
