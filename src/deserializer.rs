@@ -5,7 +5,7 @@ use serde::Deserializer;
 
 use garnish_traits::{ExpressionDataType, GarnishLangRuntimeData};
 
-use crate::error::GarnishSerializationError;
+use crate::error::{GarnishSerializationError, wrap_err};
 use crate::serializer::GarnishNumberConversions;
 
 struct GarnishDataDeserializer<'a, Data>
@@ -83,7 +83,16 @@ where
     where
         V: Visitor<'de>,
     {
-        todo!()
+        let (t, a) = self.value()?;
+        match t {
+            ExpressionDataType::Number => {
+                let v = self.data.get_number(a).or_else(wrap_err)?;
+                visitor.visit_i8(v.into())
+            }
+            t => Err(GarnishSerializationError::from(
+                format!("Expected Number, found {:?}", t).as_str(),
+            )),
+        }
     }
 
     fn deserialize_i16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -295,6 +304,7 @@ where
 #[cfg(test)]
 mod tests {
     use serde::Deserialize;
+    use garnish_data::data::SimpleNumber;
 
     use garnish_data::SimpleRuntimeData;
     use garnish_traits::GarnishLangRuntimeData;
@@ -327,5 +337,19 @@ mod tests {
         let v = bool::deserialize(&mut deserializer).unwrap();
 
         assert!(!v);
+    }
+
+    #[test]
+    fn deserialize_i8() {
+        let mut data = SimpleRuntimeData::new();
+        data.add_number(SimpleNumber::Integer(100))
+            .and_then(|r| data.push_value_stack(r))
+            .unwrap();
+
+        let mut deserializer = GarnishDataDeserializer::new(&mut data);
+
+        let v = i8::deserialize(&mut deserializer).unwrap();
+
+        assert_eq!(v, 100)
     }
 }

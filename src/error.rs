@@ -122,3 +122,14 @@ impl<Data> serde::de::Error for GarnishSerializationError<Data>
         }
     }
 }
+
+pub fn wrap_err<V, Data>(e: Data::Error) -> Result<V, GarnishSerializationError<Data>>
+    where
+        Data: GarnishLangRuntimeData,
+        Data::Number: GarnishNumberConversions,
+        Data::Size: From<usize>,
+        Data::Char: From<char>,
+        Data::Byte: From<u8>,
+{
+    Err(GarnishSerializationError::new(e))
+}

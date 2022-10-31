@@ -7,7 +7,7 @@ use serde::ser::{
 };
 
 use garnish_traits::{GarnishLangRuntimeData, TypeConstants};
-use crate::error::GarnishSerializationError;
+use crate::error::{GarnishSerializationError, wrap_err};
 
 pub trait GarnishNumberConversions:
     From<i8>
@@ -20,6 +20,16 @@ pub trait GarnishNumberConversions:
     + From<u64>
     + From<f32>
     + From<f64>
+    + Into<i8>
+    + Into<i16>
+    + Into<i32>
+    + Into<i64>
+    + Into<u8>
+    + Into<u16>
+    + Into<u32>
+    + Into<u64>
+    + Into<f32>
+    + Into<f64>
 {
 }
 
@@ -34,6 +44,16 @@ impl<T> GarnishNumberConversions for T where
         + From<u64>
         + From<f32>
         + From<f64>
+        + Into<i8>
+        + Into<i16>
+        + Into<i32>
+        + Into<i64>
+        + Into<u8>
+        + Into<u16>
+        + Into<u32>
+        + Into<u64>
+        + Into<f32>
+        + Into<f64>
 {
 }
 
@@ -136,17 +156,6 @@ where
         }
         self.data.end_list().or_else(wrap_err)
     }
-}
-
-fn wrap_err<V, Data>(e: Data::Error) -> Result<V, GarnishSerializationError<Data>>
-where
-    Data: GarnishLangRuntimeData,
-    Data::Number: GarnishNumberConversions,
-    Data::Size: From<usize>,
-    Data::Char: From<char>,
-    Data::Byte: From<u8>,
-{
-    Err(GarnishSerializationError::new(e))
 }
 
 impl<'a, 'b, Data> Serializer for &'b mut GarnishDataSerializer<'a, Data>
