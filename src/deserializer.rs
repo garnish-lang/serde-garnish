@@ -15,6 +15,7 @@ where
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Char: From<char>,
+    Data::Char: Into<char>,
     Data::Byte: From<u8>,
 {
     data: &'a Data,
@@ -26,6 +27,7 @@ where
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Char: From<char>,
+    Data::Char: Into<char>,
     Data::Byte: From<u8>,
 {
     pub fn new(data: &'a Data) -> Self {
@@ -79,6 +81,7 @@ where
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Char: From<char>,
+    Data::Char: Into<char>,
     Data::Byte: From<u8>,
 {
     type Error = GarnishSerializationError<Data>;
@@ -121,70 +124,120 @@ where
     where
         V: Visitor<'de>,
     {
-        todo!()
+        self.deserialize_primitive(
+            visitor,
+            Data::get_number,
+            V::visit_i16,
+            ExpressionDataType::Number,
+        )
     }
 
     fn deserialize_i32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        todo!()
+        self.deserialize_primitive(
+            visitor,
+            Data::get_number,
+            V::visit_i32,
+            ExpressionDataType::Number,
+        )
     }
 
     fn deserialize_i64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        todo!()
+        self.deserialize_primitive(
+            visitor,
+            Data::get_number,
+            V::visit_i64,
+            ExpressionDataType::Number,
+        )
     }
 
     fn deserialize_u8<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        todo!()
+        self.deserialize_primitive(
+            visitor,
+            Data::get_number,
+            V::visit_u8,
+            ExpressionDataType::Number,
+        )
     }
 
     fn deserialize_u16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        todo!()
+        self.deserialize_primitive(
+            visitor,
+            Data::get_number,
+            V::visit_u16,
+            ExpressionDataType::Number,
+        )
     }
 
     fn deserialize_u32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        todo!()
+        self.deserialize_primitive(
+            visitor,
+            Data::get_number,
+            V::visit_u32,
+            ExpressionDataType::Number,
+        )
     }
 
     fn deserialize_u64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        todo!()
+        self.deserialize_primitive(
+            visitor,
+            Data::get_number,
+            V::visit_u64,
+            ExpressionDataType::Number,
+        )
     }
 
     fn deserialize_f32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        todo!()
+        self.deserialize_primitive(
+            visitor,
+            Data::get_number,
+            V::visit_f32,
+            ExpressionDataType::Number,
+        )
     }
 
     fn deserialize_f64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        todo!()
+        self.deserialize_primitive(
+            visitor,
+            Data::get_number,
+            V::visit_f64,
+            ExpressionDataType::Number,
+        )
     }
 
     fn deserialize_char<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        todo!()
+        self.deserialize_primitive(
+            visitor,
+            Data::get_char,
+            V::visit_char,
+            ExpressionDataType::Char,
+        )
     }
 
     fn deserialize_str<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -338,7 +391,7 @@ mod tests {
     fn assert_deserializes<SetupF, Type>(setup: SetupF, expected_value: Type)
         where
             SetupF: FnOnce(&mut SimpleRuntimeData) -> Result<usize, DataError>,
-            Type: DeserializeOwned + PartialEq + Eq + Debug,
+            Type: DeserializeOwned + PartialEq + Debug,
     {
         let mut data = SimpleRuntimeData::new();
         let addr = setup(&mut data).unwrap();
@@ -370,5 +423,75 @@ mod tests {
         assert_deserializes(|data| {
             data.add_number(SimpleNumber::Integer(100))
         }, 100i8);
+    }
+
+    #[test]
+    fn deserialize_i16() {
+        assert_deserializes(|data| {
+            data.add_number(SimpleNumber::Integer(100))
+        }, 100i16);
+    }
+
+    #[test]
+    fn deserialize_i32() {
+        assert_deserializes(|data| {
+            data.add_number(SimpleNumber::Integer(100))
+        }, 100i32);
+    }
+
+    #[test]
+    fn deserialize_i64() {
+        assert_deserializes(|data| {
+            data.add_number(SimpleNumber::Integer(100))
+        }, 100i64);
+    }
+
+    #[test]
+    fn deserialize_u8() {
+        assert_deserializes(|data| {
+            data.add_number(SimpleNumber::Integer(100))
+        }, 100u8);
+    }
+
+    #[test]
+    fn deserialize_u16() {
+        assert_deserializes(|data| {
+            data.add_number(SimpleNumber::Integer(100))
+        }, 100u16);
+    }
+
+    #[test]
+    fn deserialize_u32() {
+        assert_deserializes(|data| {
+            data.add_number(SimpleNumber::Integer(100))
+        }, 100u32);
+    }
+
+    #[test]
+    fn deserialize_u64() {
+        assert_deserializes(|data| {
+            data.add_number(SimpleNumber::Integer(100))
+        }, 100u64);
+    }
+
+    #[test]
+    fn deserialize_f32() {
+        assert_deserializes(|data| {
+            data.add_number(SimpleNumber::Float(100.0))
+        }, 100.0f32);
+    }
+
+    #[test]
+    fn deserialize_f64() {
+        assert_deserializes(|data| {
+            data.add_number(SimpleNumber::Float(100.0))
+        }, 100.0f64);
+    }
+
+    #[test]
+    fn deserialize_char() {
+        assert_deserializes(|data| {
+            data.add_char('a')
+        }, 'a');
     }
 }
