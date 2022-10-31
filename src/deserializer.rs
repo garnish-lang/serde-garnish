@@ -325,10 +325,12 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Debug;
+    use serde::de::DeserializeOwned;
     use serde::Deserialize;
 
     use garnish_data::data::SimpleNumber;
-    use garnish_data::SimpleRuntimeData;
+    use garnish_data::{DataError, SimpleRuntimeData};
     use garnish_traits::GarnishLangRuntimeData;
 
     use crate::deserializer::GarnishDataDeserializer;
@@ -361,17 +363,26 @@ mod tests {
         assert!(!v);
     }
 
-    #[test]
-    fn deserialize_i8() {
+    fn assert_deserializes<SetupF, Type>(setup: SetupF, expected_value: Type)
+    where
+        SetupF: FnOnce(&mut SimpleRuntimeData) -> Result<usize, DataError>,
+        Type: DeserializeOwned + PartialEq + Eq + Debug,
+    {
         let mut data = SimpleRuntimeData::new();
-        data.add_number(SimpleNumber::Integer(100))
-            .and_then(|r| data.push_value_stack(r))
-            .unwrap();
+        let addr = setup(&mut data).unwrap();
+        data.push_value_stack(addr).unwrap();
 
         let mut deserializer = GarnishDataDeserializer::new(&mut data);
 
-        let v = i8::deserialize(&mut deserializer).unwrap();
+        let v = Type::deserialize(&mut deserializer).unwrap();
 
-        assert_eq!(v, 100)
+        assert_eq!(v, expected_value)
+    }
+
+    #[test]
+    fn deserialize_i8() {
+        assert_deserializes(|data| {
+            data.add_number(SimpleNumber::Integer(100))
+        }, 100i8);
     }
 }
