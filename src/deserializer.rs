@@ -335,38 +335,10 @@ mod tests {
 
     use crate::deserializer::GarnishDataDeserializer;
 
-    #[test]
-    fn deserialize_true() {
-        let mut data = SimpleRuntimeData::new();
-        data.add_true()
-            .and_then(|r| data.push_value_stack(r))
-            .unwrap();
-
-        let mut deserializer = GarnishDataDeserializer::new(&mut data);
-
-        let v = bool::deserialize(&mut deserializer).unwrap();
-
-        assert!(v);
-    }
-
-    #[test]
-    fn deserialize_false() {
-        let mut data = SimpleRuntimeData::new();
-        data.add_false()
-            .and_then(|r| data.push_value_stack(r))
-            .unwrap();
-
-        let mut deserializer = GarnishDataDeserializer::new(&mut data);
-
-        let v = bool::deserialize(&mut deserializer).unwrap();
-
-        assert!(!v);
-    }
-
     fn assert_deserializes<SetupF, Type>(setup: SetupF, expected_value: Type)
-    where
-        SetupF: FnOnce(&mut SimpleRuntimeData) -> Result<usize, DataError>,
-        Type: DeserializeOwned + PartialEq + Eq + Debug,
+        where
+            SetupF: FnOnce(&mut SimpleRuntimeData) -> Result<usize, DataError>,
+            Type: DeserializeOwned + PartialEq + Eq + Debug,
     {
         let mut data = SimpleRuntimeData::new();
         let addr = setup(&mut data).unwrap();
@@ -377,6 +349,20 @@ mod tests {
         let v = Type::deserialize(&mut deserializer).unwrap();
 
         assert_eq!(v, expected_value)
+    }
+
+    #[test]
+    fn deserialize_true() {
+        assert_deserializes(|data| {
+            data.add_true()
+        }, true);
+    }
+
+    #[test]
+    fn deserialize_false() {
+        assert_deserializes(|data| {
+            data.add_false()
+        }, false);
     }
 
     #[test]
