@@ -30,6 +30,19 @@ where
     pub fn new(data: &'a Data) -> Self {
         Self { data }
     }
+
+    fn value(&self) -> Result<(ExpressionDataType, Data::Size), GarnishSerializationError<Data>> {
+        let a = self
+            .data
+            .get_current_value()
+            .ok_or("No current value to deserialize.")?;
+        let t = self
+            .data
+            .get_data_type(a)
+            .or_else(|e| Err(GarnishSerializationError::new(e)))?;
+
+        Ok((t, a))
+    }
 }
 
 impl<'de, 'a, 'b, Data> Deserializer<'de> for &'b mut GarnishDataDeserializer<'a, Data>
@@ -55,22 +68,14 @@ where
     where
         V: Visitor<'de>,
     {
-        let t = self
-            .data
-            .get_data_type(
-                self.data
-                    .get_current_value()
-                    .ok_or("No current value to deserialize.")?,
-            )
-            .or_else(|e| Err(GarnishSerializationError::new(e)))?;
+        let (t, _a) = self.value()?;
 
         match t {
             ExpressionDataType::True => visitor.visit_bool(true),
             ExpressionDataType::False => visitor.visit_bool(false),
-            t => Err(GarnishSerializationError::from(format!(
-                "Expected True or False, found {:?}",
-                t
-            ).as_str())),
+            t => Err(GarnishSerializationError::from(
+                format!("Expected True or False, found {:?}", t).as_str(),
+            )),
         }
     }
 
