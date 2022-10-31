@@ -140,7 +140,7 @@ where
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub enum OptionalBehavior {
-    Pair,
+    UnitSymbol,
     UnitValue,
 }
 
@@ -187,7 +187,7 @@ where
         GarnishDataSerializer {
             data,
             data_addr: None,
-            optional_behavior: OptionalBehavior::Pair,
+            optional_behavior: OptionalBehavior::UnitValue,
             struct_typing_behavior: StructBehavior::ExcludeTyping,
             variant_name_behavior: VariantNameBehavior::Full,
             struct_sym: None,
@@ -343,15 +343,12 @@ where
     }
 
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
-        let unit = self.data.add_unit().or_else(wrap_err)?;
         match self.optional_behavior {
-            OptionalBehavior::Pair => {
-                let sym = self.data.parse_add_symbol("none").or_else(wrap_err)?;
-                self.data.add_pair((sym, unit)).or_else(wrap_err)
+            OptionalBehavior::UnitSymbol => {
+                self.data.parse_add_symbol("none").or_else(wrap_err)
             }
             OptionalBehavior::UnitValue => {
-                // already added to data, return addr
-                Ok(unit)
+                self.data.add_unit().or_else(wrap_err)
             }
         }
     }
@@ -360,17 +357,7 @@ where
     where
         T: Serialize,
     {
-        let val = value.serialize(&mut *self)?;
-        match self.optional_behavior {
-            OptionalBehavior::Pair => {
-                let sym = self.data.parse_add_symbol("some").or_else(wrap_err)?;
-                self.data.add_pair((sym, val)).or_else(wrap_err)
-            }
-            OptionalBehavior::UnitValue => {
-                // already added to data, return addr
-                Ok(val)
-            }
-        }
+        value.serialize(&mut *self)
     }
 
     fn serialize_unit(self) -> Result<Self::Ok, Self::Error> {
@@ -886,35 +873,29 @@ mod tests {
     }
 
     #[test]
-    fn serialize_none_pair() {
+    fn serialize_none_symbol() {
         let mut data = SimpleRuntimeData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
+        serializer.set_optional_behavior(OptionalBehavior::UnitSymbol);
 
         let addr = serializer.serialize_none().unwrap();
 
-        let (left, right) = data.get_data().get(addr).unwrap().as_pair().unwrap();
         assert_eq!(
-            data.get_data().get(left).unwrap(),
+            data.get_data().get(addr).unwrap(),
             &SimpleData::Symbol(symbol_value("none"))
         );
-        assert_eq!(data.get_data().get(right).unwrap(), &SimpleData::Unit);
     }
 
     #[test]
-    fn serialize_some_pair() {
+    fn serialize_some_as_value_when_unit_symbol() {
         let mut data = SimpleRuntimeData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
+        serializer.set_optional_behavior(OptionalBehavior::UnitSymbol);
 
         let addr = serializer.serialize_some(&10).unwrap();
 
-        let (left, right) = data.get_data().get(addr).unwrap().as_pair().unwrap();
-
         assert_eq!(
-            data.get_data().get(left).unwrap(),
-            &SimpleData::Symbol(symbol_value("some"))
-        );
-        assert_eq!(
-            data.get_data().get(right).unwrap(),
+            data.get_data().get(addr).unwrap(),
             &SimpleData::Number(SimpleNumber::Integer(10))
         );
     }
@@ -923,7 +904,6 @@ mod tests {
     fn serialize_none_as_unit() {
         let mut data = SimpleRuntimeData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
-        serializer.set_optional_behavior(OptionalBehavior::UnitValue);
 
         let addr = serializer.serialize_none().unwrap();
 
@@ -934,7 +914,6 @@ mod tests {
     fn serialize_some_as_value() {
         let mut data = SimpleRuntimeData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
-        serializer.set_optional_behavior(OptionalBehavior::UnitValue);
 
         let addr = serializer.serialize_some(&10).unwrap();
 
