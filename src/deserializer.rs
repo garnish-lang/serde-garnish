@@ -2,7 +2,8 @@ use serde::de::Visitor;
 use serde::Deserializer;
 
 use garnish_traits::GarnishLangRuntimeData;
-use crate::serializer::{GarnishNumberConversions, GarnishSerializationError};
+use crate::error::GarnishSerializationError;
+use crate::serializer::{GarnishNumberConversions};
 
 struct GarnishDataDeserializer<'a, Data>
 where
