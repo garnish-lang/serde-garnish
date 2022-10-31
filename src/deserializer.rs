@@ -1,3 +1,4 @@
+use std::convert::From;
 use std::fmt::format;
 
 use serde::de::Visitor;
@@ -5,7 +6,7 @@ use serde::Deserializer;
 
 use garnish_traits::{ExpressionDataType, GarnishLangRuntimeData};
 
-use crate::error::{GarnishSerializationError, wrap_err};
+use crate::error::{wrap_err, GarnishSerializationError};
 use crate::serializer::GarnishNumberConversions;
 
 struct GarnishDataDeserializer<'a, Data>
@@ -42,6 +43,31 @@ where
             .or_else(|e| Err(GarnishSerializationError::new(e)))?;
 
         Ok((t, a))
+    }
+
+    fn deserialize_primitive<'de, From, To, V, GetF, VisitF>(
+        &self,
+        visitor: V,
+        get_source: GetF,
+        visit_func: VisitF,
+        expected_type: ExpressionDataType,
+    ) -> Result<V::Value, GarnishSerializationError<Data>>
+    where
+        V: Visitor<'de>,
+        From: Into<To>,
+        GetF: FnOnce(&Data, Data::Size) -> Result<From, Data::Error>,
+        VisitF: FnOnce(V, To) -> Result<V::Value, GarnishSerializationError<Data>>,
+    {
+        let (t, a) = self.value()?;
+        match t == expected_type {
+            true => {
+                let v = get_source(self.data, a).or_else(wrap_err)?;
+                visit_func(visitor, v.into())
+            }
+            false => Err(GarnishSerializationError::from(
+                format!("Expected {:?}, found {:?}", expected_type, t).as_str(),
+            )),
+        }
     }
 }
 
@@ -83,16 +109,12 @@ where
     where
         V: Visitor<'de>,
     {
-        let (t, a) = self.value()?;
-        match t {
-            ExpressionDataType::Number => {
-                let v = self.data.get_number(a).or_else(wrap_err)?;
-                visitor.visit_i8(v.into())
-            }
-            t => Err(GarnishSerializationError::from(
-                format!("Expected Number, found {:?}", t).as_str(),
-            )),
-        }
+        self.deserialize_primitive(
+            visitor,
+            Data::get_number,
+            V::visit_i8,
+            ExpressionDataType::Number,
+        )
     }
 
     fn deserialize_i16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -304,8 +326,8 @@ where
 #[cfg(test)]
 mod tests {
     use serde::Deserialize;
-    use garnish_data::data::SimpleNumber;
 
+    use garnish_data::data::SimpleNumber;
     use garnish_data::SimpleRuntimeData;
     use garnish_traits::GarnishLangRuntimeData;
 
