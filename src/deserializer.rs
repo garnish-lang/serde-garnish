@@ -314,7 +314,11 @@ where
     where
         V: Visitor<'de>,
     {
-        todo!()
+        let (t, _a) = self.value()?;
+        match t {
+            ExpressionDataType::Unit => visitor.visit_none(),
+            _ => visitor.visit_some(self)
+        }
     }
 
     fn deserialize_unit<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -567,5 +571,19 @@ mod tests {
         assert_deserializes(|data| {
             data.parse_add_byte_list("abcd")
         }, SomeBytes { bytes: vec!['a' as u8, 'b' as u8, 'c' as u8, 'd' as u8] });
+    }
+
+    #[test]
+    fn deserialize_option_some() {
+        assert_deserializes(|data| {
+            data.add_number(SimpleNumber::Integer(100))
+        }, Some(100));
+    }
+
+    #[test]
+    fn deserialize_option_none() {
+        assert_deserializes(|data| {
+            data.add_unit()
+        }, None::<i32>);
     }
 }
