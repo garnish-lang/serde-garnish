@@ -380,19 +380,19 @@ where
     where
         V: Visitor<'data>,
     {
-        todo!()
+        visitor.visit_seq(ListAccessor::new_with_max(self, len)?)
     }
 
     fn deserialize_tuple_struct<V>(
         self,
-        name: &'static str,
+        _name: &'static str,
         len: usize,
         visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'data>,
     {
-        todo!()
+        visitor.visit_seq(ListAccessor::new_with_max(self, len)?)
     }
 
     fn deserialize_map<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -480,6 +480,22 @@ where
             len,
         })
     }
+
+    pub fn new_with_max(
+        de: &'a mut GarnishDataDeserializer<'data, Data>,
+        max: usize,
+    ) -> Result<Self, GarnishSerializationError<Data>> {
+        let (_t, a) = de.value()?;
+        let len = de.data.get_list_len(a).or_else(wrap_err)?;
+        if len.into() > max {
+            return Err(GarnishSerializationError::from(format!("Cannot deserialize list like value. Expected maximum of {} items, found {}", max, len).as_str()));
+        }
+        Ok(Self {
+            de,
+            i: Data::Size::zero(),
+            len,
+        })
+    }
 }
 
 impl<'a, 'data, Data> SeqAccess<'data> for ListAccessor<'a, 'data, Data>
@@ -531,11 +547,12 @@ mod tests {
     use garnish_traits::GarnishLangRuntimeData;
 
     use crate::deserializer::GarnishDataDeserializer;
+    use crate::error::GarnishSerializationError;
 
-    fn assert_deserializes<SetupF, Type>(setup: SetupF, expected_value: Type)
-    where
-        SetupF: FnOnce(&mut SimpleRuntimeData) -> Result<usize, DataError>,
-        Type: DeserializeOwned + PartialEq + Debug,
+    fn deserialize<SetupF, Type>(setup: SetupF) -> Result<Type, GarnishSerializationError<SimpleRuntimeData>>
+        where
+            SetupF: FnOnce(&mut SimpleRuntimeData) -> Result<usize, DataError>,
+            Type: DeserializeOwned + PartialEq + Debug,
     {
         let mut data = SimpleRuntimeData::new();
         let addr = setup(&mut data).unwrap();
@@ -543,9 +560,24 @@ mod tests {
 
         let mut deserializer = GarnishDataDeserializer::new(&mut data);
 
-        let v = Type::deserialize(&mut deserializer).unwrap();
+        Type::deserialize(&mut deserializer)
+    }
 
-        assert_eq!(v, expected_value)
+    fn assert_deserializes<SetupF, Type>(setup: SetupF, expected_value: Type)
+    where
+        SetupF: FnOnce(&mut SimpleRuntimeData) -> Result<usize, DataError>,
+        Type: DeserializeOwned + PartialEq + Debug,
+    {
+        let v = deserialize::<SetupF, Type>(setup).unwrap();
+        assert_eq!(v, expected_value);
+    }
+
+    fn assert_fails<SetupF, Type>(setup: SetupF, expected_value: Type)
+        where
+            SetupF: FnOnce(&mut SimpleRuntimeData) -> Result<usize, DataError>,
+            Type: DeserializeOwned + PartialEq + Debug,
+    {
+        assert!(deserialize::<SetupF, Type>(setup).is_err());
     }
 
     #[test]
@@ -758,6 +790,77 @@ mod tests {
                 data.end_list()
             },
             vec![vec![100, 200, 300], vec![400, 500, 600]],
+        );
+    }
+
+    #[test]
+    fn deserialize_tuple() {
+        assert_deserializes(
+            |data| {
+                let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
+                let num2 = data.add_number(SimpleNumber::Integer(200)).unwrap();
+                let num3 = data.add_number(SimpleNumber::Integer(300)).unwrap();
+                data.start_list(3).unwrap();
+                data.add_to_list(num1, false).unwrap();
+                data.add_to_list(num2, false).unwrap();
+                data.add_to_list(num3, false).unwrap();
+                data.end_list()
+            },
+            (100, 200, 300),
+        );
+    }
+
+    #[derive(Debug, PartialEq, Deserialize)]
+    struct SomeNumbers(i32, i32, i32);
+
+    #[test]
+    fn deserialize_tuple_struct() {
+        assert_deserializes(
+            |data| {
+                let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
+                let num2 = data.add_number(SimpleNumber::Integer(200)).unwrap();
+                let num3 = data.add_number(SimpleNumber::Integer(300)).unwrap();
+                data.start_list(3).unwrap();
+                data.add_to_list(num1, false).unwrap();
+                data.add_to_list(num2, false).unwrap();
+                data.add_to_list(num3, false).unwrap();
+                data.end_list()
+            },
+            SomeNumbers(100, 200, 300),
+        );
+    }
+
+    #[test]
+    fn deserialize_tuple_to_few() {
+        assert_fails(
+            |data| {
+                let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
+                let num2 = data.add_number(SimpleNumber::Integer(200)).unwrap();
+                data.start_list(2).unwrap();
+                data.add_to_list(num1, false).unwrap();
+                data.add_to_list(num2, false).unwrap();
+                data.end_list()
+            },
+            (100, 200, 300),
+        );
+    }
+
+    #[test]
+    fn deserialize_tuple_to_many() {
+        assert_fails(
+            |data| {
+                let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
+                let num2 = data.add_number(SimpleNumber::Integer(200)).unwrap();
+                let num3 = data.add_number(SimpleNumber::Integer(300)).unwrap();
+                let num4 = data.add_number(SimpleNumber::Integer(400)).unwrap();
+                data.start_list(4).unwrap();
+                data.add_to_list(num1, false).unwrap();
+                data.add_to_list(num2, false).unwrap();
+                data.add_to_list(num3, false).unwrap();
+                data.add_to_list(num4, false).unwrap();
+                data.end_list()
+            },
+            (100, 200, 300),
         );
     }
 }
