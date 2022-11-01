@@ -243,7 +243,7 @@ where
         )
     }
 
-    fn deserialize_str<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_str<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
@@ -275,11 +275,13 @@ where
         }
     }
 
-    fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_bytes<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        todo!()
+        Err(GarnishSerializationError::from(
+            "Deserialization of &[u8] not supported, use owned type Vec<u8> instead.",
+        ))
     }
 
     fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -506,4 +508,12 @@ mod tests {
             String::from("abcd"),
         );
     }
+
+    // cannot currently be implemented
+    // #[test]
+    // fn deserialize_bytes() {
+    //     assert_deserializes(|data| {
+    //         data.parse_add_byte_list("abcd")
+    //     }, &['a' as u8, 'b' as u8, 'c' as u8, 'd' as u8]);
+    // }
 }
