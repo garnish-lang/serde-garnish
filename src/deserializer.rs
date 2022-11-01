@@ -334,13 +334,13 @@ where
 
     fn deserialize_unit_struct<V>(
         self,
-        name: &'static str,
+        _name: &'static str,
         visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        todo!()
+        self.deserialize_unit(visitor)
     }
 
     fn deserialize_newtype_struct<V>(
@@ -429,6 +429,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::fmt::{Debug, Formatter};
+    use std::marker::PhantomData;
 
     use serde::de::{DeserializeOwned, Error, Visitor};
     use serde::{Deserialize, Deserializer};
@@ -596,5 +597,12 @@ mod tests {
         assert_deserializes(|data| {
             data.add_unit()
         }, ());
+    }
+
+    #[test]
+    fn deserialize_unit_struct() {
+        assert_deserializes(|data| {
+            data.add_unit()
+        }, PhantomData::<i32>);
     }
 }
