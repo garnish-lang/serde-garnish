@@ -325,7 +325,11 @@ where
     where
         V: Visitor<'de>,
     {
-        todo!()
+        let (t, _a) = self.value()?;
+        match t {
+            ExpressionDataType::Unit => visitor.visit_unit(),
+            t => Err(GarnishSerializationError::from(format!("Expected Unit, found {:?}", t).as_str()))
+        }
     }
 
     fn deserialize_unit_struct<V>(
@@ -585,5 +589,12 @@ mod tests {
         assert_deserializes(|data| {
             data.add_unit()
         }, None::<i32>);
+    }
+
+    #[test]
+    fn deserialize_unit() {
+        assert_deserializes(|data| {
+            data.add_unit()
+        }, ());
     }
 }
