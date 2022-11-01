@@ -18,6 +18,7 @@ where
     Data::Char: From<char>,
     Data::Char: Into<char>,
     Data::Byte: From<u8>,
+    Data::Byte: Into<u8>,
 {
     data: &'a Data,
 }
@@ -31,6 +32,7 @@ where
     Data::Char: From<char>,
     Data::Char: Into<char>,
     Data::Byte: From<u8>,
+    Data::Byte: Into<u8>,
 {
     pub fn new(data: &'a Data) -> Self {
         Self { data }
@@ -86,6 +88,7 @@ where
     Data::Char: From<char>,
     Data::Char: Into<char>,
     Data::Byte: From<u8>,
+    Data::Byte: Into<u8>,
 {
     type Error = GarnishSerializationError<Data>;
 
@@ -288,7 +291,23 @@ where
     where
         V: Visitor<'de>,
     {
-        todo!()
+        let (t, a) = self.value()?;
+        match t {
+            ExpressionDataType::ByteList => {
+                let len = self.data.get_byte_list_len(a).or_else(wrap_err)?;
+                let mut bytes = Vec::with_capacity(len.into());
+                let mut i = Data::Size::zero();
+
+                while i < len {
+                    let b = self.data.get_byte_list_item(a, Data::size_to_number(i)).or_else(wrap_err)?;
+                    bytes.push(b.into());
+                    i += Data::Size::one();
+                }
+
+                visitor.visit_byte_buf(bytes)
+            }
+            t => Err(GarnishSerializationError::from(format!("Expected ByteList, found {:?}", t).as_str()))
+        }
     }
 
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -401,10 +420,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::fmt::Debug;
+    use std::fmt::{Debug, Formatter};
 
-    use serde::de::DeserializeOwned;
-    use serde::Deserialize;
+    use serde::de::{DeserializeOwned, Error, Visitor};
+    use serde::{Deserialize, Deserializer};
 
     use garnish_data::data::SimpleNumber;
     use garnish_data::{DataError, SimpleRuntimeData};
@@ -516,4 +535,37 @@ mod tests {
     //         data.parse_add_byte_list("abcd")
     //     }, &['a' as u8, 'b' as u8, 'c' as u8, 'd' as u8]);
     // }
+
+    // regular vec was calling sequence deserialization
+    // made this one to ensure byte buf functions are called
+    #[derive(Debug, Clone, PartialEq)]
+    struct SomeBytes {
+        bytes: Vec<u8>
+    }
+
+    impl<'de> Deserialize<'de> for SomeBytes {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: Deserializer<'de> {
+            struct SomeBytesVisitor;
+            impl<'de> Visitor<'de> for SomeBytesVisitor {
+                type Value = SomeBytes;
+
+                fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
+                    formatter.write_str("Expecting vec of bytes.")
+                }
+
+                fn visit_byte_buf<E>(self, v: Vec<u8>) -> Result<Self::Value, E> where E: Error {
+                    Ok(SomeBytes { bytes: v })
+                }
+            }
+
+            deserializer.deserialize_byte_buf(SomeBytesVisitor)
+        }
+    }
+
+    #[test]
+    fn deserialize_byte_buf() {
+        assert_deserializes(|data| {
+            data.parse_add_byte_list("abcd")
+        }, SomeBytes { bytes: vec!['a' as u8, 'b' as u8, 'c' as u8, 'd' as u8] });
+    }
 }
