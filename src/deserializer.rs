@@ -345,13 +345,13 @@ where
 
     fn deserialize_newtype_struct<V>(
         self,
-        name: &'static str,
+        _name: &'static str,
         visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        todo!()
+        visitor.visit_newtype_struct(self)
     }
 
     fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -604,5 +604,15 @@ mod tests {
         assert_deserializes(|data| {
             data.add_unit()
         }, PhantomData::<i32>);
+    }
+
+    #[derive(Deserialize, Debug, PartialEq)]
+    struct SomeNumber(i32);
+
+    #[test]
+    fn deserialize_newtype_struct() {
+        assert_deserializes(|data| {
+            data.add_number(SimpleNumber::Integer(100))
+        }, SomeNumber(100));
     }
 }
