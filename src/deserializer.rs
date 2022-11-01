@@ -4,7 +4,7 @@ use std::fmt::format;
 use serde::de::Visitor;
 use serde::Deserializer;
 
-use garnish_traits::{ExpressionDataType, GarnishLangRuntimeData};
+use garnish_traits::{ExpressionDataType, GarnishLangRuntimeData, TypeConstants};
 
 use crate::error::{wrap_err, GarnishSerializationError};
 use crate::serializer::GarnishNumberConversions;
@@ -14,6 +14,7 @@ where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
+    Data::Size: Into<usize>,
     Data::Char: From<char>,
     Data::Char: Into<char>,
     Data::Byte: From<u8>,
@@ -26,6 +27,7 @@ where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
+    Data::Size: Into<usize>,
     Data::Char: From<char>,
     Data::Char: Into<char>,
     Data::Byte: From<u8>,
@@ -80,6 +82,7 @@ where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
+    Data::Size: Into<usize>,
     Data::Char: From<char>,
     Data::Char: Into<char>,
     Data::Byte: From<u8>,
@@ -244,14 +247,32 @@ where
     where
         V: Visitor<'de>,
     {
-        todo!()
+        Err(GarnishSerializationError::from(
+            "Deserialization of &str not supported, use owned type String instead.",
+        ))
     }
 
     fn deserialize_string<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        todo!()
+        let (t, a) = self.value()?;
+        match t {
+            ExpressionDataType::CharList => {
+                let len = self.data.get_char_list_len(a).or_else(wrap_err)?;
+                let mut s = String::with_capacity(len.into());
+                let mut i = Data::Size::zero();
+
+                while i < len {
+                    let c = self.data.get_char_list_item(a, Data::size_to_number(i)).or_else(wrap_err)?;
+                    s.push(c.into());
+                    i += Data::Size::one();
+                }
+
+                visitor.visit_string(s)
+            }
+            t => Err(GarnishSerializationError::from(format!("Expected CharList, found {:?}", t).as_str()))
+        }
     }
 
     fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -379,6 +400,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::fmt::Debug;
+
     use serde::de::DeserializeOwned;
     use serde::Deserialize;
 
@@ -389,9 +411,9 @@ mod tests {
     use crate::deserializer::GarnishDataDeserializer;
 
     fn assert_deserializes<SetupF, Type>(setup: SetupF, expected_value: Type)
-        where
-            SetupF: FnOnce(&mut SimpleRuntimeData) -> Result<usize, DataError>,
-            Type: DeserializeOwned + PartialEq + Debug,
+    where
+        SetupF: FnOnce(&mut SimpleRuntimeData) -> Result<usize, DataError>,
+        Type: DeserializeOwned + PartialEq + Debug,
     {
         let mut data = SimpleRuntimeData::new();
         let addr = setup(&mut data).unwrap();
@@ -406,92 +428,82 @@ mod tests {
 
     #[test]
     fn deserialize_true() {
-        assert_deserializes(|data| {
-            data.add_true()
-        }, true);
+        assert_deserializes(|data| data.add_true(), true);
     }
 
     #[test]
     fn deserialize_false() {
-        assert_deserializes(|data| {
-            data.add_false()
-        }, false);
+        assert_deserializes(|data| data.add_false(), false);
     }
 
     #[test]
     fn deserialize_i8() {
-        assert_deserializes(|data| {
-            data.add_number(SimpleNumber::Integer(100))
-        }, 100i8);
+        assert_deserializes(|data| data.add_number(SimpleNumber::Integer(100)), 100i8);
     }
 
     #[test]
     fn deserialize_i16() {
-        assert_deserializes(|data| {
-            data.add_number(SimpleNumber::Integer(100))
-        }, 100i16);
+        assert_deserializes(|data| data.add_number(SimpleNumber::Integer(100)), 100i16);
     }
 
     #[test]
     fn deserialize_i32() {
-        assert_deserializes(|data| {
-            data.add_number(SimpleNumber::Integer(100))
-        }, 100i32);
+        assert_deserializes(|data| data.add_number(SimpleNumber::Integer(100)), 100i32);
     }
 
     #[test]
     fn deserialize_i64() {
-        assert_deserializes(|data| {
-            data.add_number(SimpleNumber::Integer(100))
-        }, 100i64);
+        assert_deserializes(|data| data.add_number(SimpleNumber::Integer(100)), 100i64);
     }
 
     #[test]
     fn deserialize_u8() {
-        assert_deserializes(|data| {
-            data.add_number(SimpleNumber::Integer(100))
-        }, 100u8);
+        assert_deserializes(|data| data.add_number(SimpleNumber::Integer(100)), 100u8);
     }
 
     #[test]
     fn deserialize_u16() {
-        assert_deserializes(|data| {
-            data.add_number(SimpleNumber::Integer(100))
-        }, 100u16);
+        assert_deserializes(|data| data.add_number(SimpleNumber::Integer(100)), 100u16);
     }
 
     #[test]
     fn deserialize_u32() {
-        assert_deserializes(|data| {
-            data.add_number(SimpleNumber::Integer(100))
-        }, 100u32);
+        assert_deserializes(|data| data.add_number(SimpleNumber::Integer(100)), 100u32);
     }
 
     #[test]
     fn deserialize_u64() {
-        assert_deserializes(|data| {
-            data.add_number(SimpleNumber::Integer(100))
-        }, 100u64);
+        assert_deserializes(|data| data.add_number(SimpleNumber::Integer(100)), 100u64);
     }
 
     #[test]
     fn deserialize_f32() {
-        assert_deserializes(|data| {
-            data.add_number(SimpleNumber::Float(100.0))
-        }, 100.0f32);
+        assert_deserializes(|data| data.add_number(SimpleNumber::Float(100.0)), 100.0f32);
     }
 
     #[test]
     fn deserialize_f64() {
-        assert_deserializes(|data| {
-            data.add_number(SimpleNumber::Float(100.0))
-        }, 100.0f64);
+        assert_deserializes(|data| data.add_number(SimpleNumber::Float(100.0)), 100.0f64);
     }
 
     #[test]
     fn deserialize_char() {
-        assert_deserializes(|data| {
-            data.add_char('a')
-        }, 'a');
+        assert_deserializes(|data| data.add_char('a'), 'a');
+    }
+
+    // cannot currently be implemented
+    // #[test]
+    // fn deserialize_str() {
+    //     assert_deserializes(|data| {
+    //         data.parse_add_char_list("abcd")
+    //     }, "abcd");
+    // }
+
+    #[test]
+    fn deserialize_string() {
+        assert_deserializes(
+            |data| data.parse_add_char_list("abcd"),
+            String::from("abcd"),
+        );
     }
 }
