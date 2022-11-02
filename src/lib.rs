@@ -39,7 +39,7 @@ mod error;
 /// | 5.0               | Number            | f32, f64                              |
 /// | "a"               | Char              | char                                  |
 /// | "abcd"            | CharList          | String                                |
-/// | '1'               | Byte              | Vec<u8>                               |
+/// | '1'               | Byte              | u8                                    |
 /// | '1234'            | ByteList          | Vec<u8>                               |
 /// | #5                | Type              | Enum                                  |
 /// | ;symbol           | Symbol            | Enum                                  |
@@ -47,7 +47,7 @@ mod error;
 /// | 5..10             | Range             | ?                                     |
 /// | 5 <> 10           | Concatenation     | Vec<T>                                |
 /// | list ~ 1..3       | Slice             | Vec<T>                                |
-/// | 10, 20, 30        | List              | List, Map, Struct                     |
+/// | 10, 20, 30        | List              | List, Map, Struct, Tuple              |
 /// | { 5 + 5 }         | Expression        | ?                                     |
 /// | external_value    | External          | ?                                     |
 /// | custom_type       | Custom            | ?                                     |
