@@ -408,7 +408,7 @@ where
     where
         V: Visitor<'data>,
     {
-        let (t, a) = self.value()?;
+        let (t, _a) = self.value()?;
         match t {
             ExpressionDataType::List => visitor.visit_map(ListAccessor::new(self)?),
             _ => Err(GarnishSerializationError::from(
@@ -419,14 +419,20 @@ where
 
     fn deserialize_struct<V>(
         self,
-        name: &'static str,
-        fields: &'static [&'static str],
+        _name: &'static str,
+        _fields: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'data>,
     {
-        todo!()
+        let (t, _a) = self.value()?;
+        match t {
+            ExpressionDataType::List => visitor.visit_map(ListAccessor::new(self)?),
+            _ => Err(GarnishSerializationError::from(
+                format!("Expected Unit, found {:?}", t).as_str(),
+            )),
+        }
     }
 
     fn deserialize_enum<V>(
@@ -445,7 +451,7 @@ where
     where
         V: Visitor<'data>,
     {
-        todo!()
+        self.deserialize_string(visitor)
     }
 
     fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -974,6 +980,43 @@ mod tests {
                 data.end_list()
             },
             expected,
+        );
+    }
+
+    #[derive(Debug, PartialEq, Deserialize)]
+    struct SomeStruct {
+        one: i32,
+        two: i32,
+        three: i32,
+    }
+
+    #[test]
+    fn deserialize_struct() {
+        assert_fails(
+            |data| {
+                let sym1 = data.parse_add_symbol("one").unwrap();
+                let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
+                let pair1 = data.add_pair((sym1, num1)).unwrap();
+
+                let sym1 = data.parse_add_symbol("two").unwrap();
+                let num1 = data.add_number(SimpleNumber::Integer(200)).unwrap();
+                let pair2 = data.add_pair((sym1, num1)).unwrap();
+
+                let sym1 = data.parse_add_symbol("three").unwrap();
+                let num1 = data.add_number(SimpleNumber::Integer(300)).unwrap();
+                let pair3 = data.add_pair((sym1, num1)).unwrap();
+
+                data.start_list(3).unwrap();
+                data.add_to_list(pair1, true).unwrap();
+                data.add_to_list(pair2, true).unwrap();
+                data.add_to_list(pair3, true).unwrap();
+                data.end_list()
+            },
+            SomeStruct {
+                one: 100,
+                two: 200,
+                three: 300,
+            },
         );
     }
 }
