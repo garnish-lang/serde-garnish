@@ -2,7 +2,10 @@ use std::convert::From;
 use std::fmt::format;
 use std::ops::Add;
 
-use serde::de::{DeserializeSeed, MapAccess, SeqAccess, Visitor};
+use serde::de::value::StrDeserializer;
+use serde::de::{
+    DeserializeSeed, EnumAccess, IntoDeserializer, MapAccess, SeqAccess, VariantAccess, Visitor,
+};
 use serde::Deserializer;
 
 use garnish_traits::{ExpressionDataType, GarnishLangRuntimeData, TypeConstants};
@@ -64,6 +67,30 @@ where
             .or_else(|e| Err(GarnishSerializationError::new(e)))?;
 
         Ok((t, a))
+    }
+
+    fn create_symbol_string(
+        &mut self,
+        a: Data::Size,
+    ) -> Result<String, GarnishSerializationError<Data>> {
+        // for deserializing identifiers and enums we need to convert symbols to strings
+        // may need Garnish Data trait to have a method for direct to string conversion
+        let a = self.data.add_char_list_from(a).or_else(wrap_err)?;
+
+        let len = self.data.get_char_list_len(a).or_else(wrap_err)?;
+        let mut s = String::with_capacity(len.into());
+        let mut i = Data::Size::zero();
+
+        while i < len {
+            let c = self
+                .data
+                .get_char_list_item(a, Data::size_to_number(i))
+                .or_else(wrap_err)?;
+            s.push(c.into());
+            i += Data::Size::one();
+        }
+
+        Ok(s)
     }
 
     fn deserialize_primitive<'de, From, To, V, GetF, VisitF>(
@@ -295,21 +322,7 @@ where
                 // need to create a CharList first
                 // may need Garnish Data trait to have a method for direct to string conversion
                 let a = self.data.add_char_list_from(a).or_else(wrap_err)?;
-
-                let len = self.data.get_char_list_len(a).or_else(wrap_err)?;
-                let mut s = String::with_capacity(len.into());
-                let mut i = Data::Size::zero();
-
-                while i < len {
-                    let c = self
-                        .data
-                        .get_char_list_item(a, Data::size_to_number(i))
-                        .or_else(wrap_err)?;
-                    s.push(c.into());
-                    i += Data::Size::one();
-                }
-
-                visitor.visit_string(s)
+                visitor.visit_string(self.create_symbol_string(a)?)
             }
             t => Err(GarnishSerializationError::from(
                 format!("Expected CharList, found {:?}", t).as_str(),
@@ -459,14 +472,14 @@ where
 
     fn deserialize_enum<V>(
         self,
-        name: &'static str,
-        variants: &'static [&'static str],
+        _name: &'static str,
+        _variants: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'data>,
     {
-        todo!()
+        visitor.visit_enum(EnumAccessor::new(self)?)
     }
 
     fn deserialize_identifier<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -644,6 +657,149 @@ where
         self.i += Data::Size::one();
 
         r
+    }
+}
+
+struct EnumAccessor<'a, 'data, Data>
+    where
+        'data: 'a,
+        Data: GarnishLangRuntimeData,
+        Data::Number: GarnishNumberConversions,
+        Data::Size: From<usize>,
+        Data::Size: Into<usize>,
+        Data::Char: From<char>,
+        Data::Char: Into<char>,
+        Data::Byte: From<u8>,
+        Data::Byte: Into<u8>,
+{
+    de: &'a mut GarnishDataDeserializer<'data, Data>,
+}
+
+impl<'a, 'data, Data> EnumAccessor<'a, 'data, Data>
+    where
+        Data: GarnishLangRuntimeData,
+        Data::Number: GarnishNumberConversions,
+        Data::Size: From<usize>,
+        Data::Size: Into<usize>,
+        Data::Char: From<char>,
+        Data::Char: Into<char>,
+        Data::Byte: From<u8>,
+        Data::Byte: Into<u8>,
+{
+    pub fn new(
+        de: &'a mut GarnishDataDeserializer<'data, Data>,
+    ) -> Result<Self, GarnishSerializationError<Data>> {
+        Ok(Self { de })
+    }
+}
+
+impl<'a, 'data, Data> EnumAccess<'data> for EnumAccessor<'a, 'data, Data>
+    where
+        Data: GarnishLangRuntimeData,
+        Data::Number: GarnishNumberConversions,
+        Data::Size: From<usize>,
+        Data::Size: Into<usize>,
+        Data::Char: From<char>,
+        Data::Char: Into<char>,
+        Data::Byte: From<u8>,
+        Data::Byte: Into<u8>,
+{
+    type Error = GarnishSerializationError<Data>;
+    type Variant = Self;
+
+    fn variant_seed<V>(self, seed: V) -> Result<(V::Value, Self::Variant), Self::Error>
+        where
+            V: DeserializeSeed<'data>,
+    {
+        let (t, a) = self.de.value()?;
+        let sym_a = match t {
+            ExpressionDataType::List => {
+                let first = self
+                    .de
+                    .data
+                    .get_list_item(a, Data::Number::zero())
+                    .or_else(wrap_err)?;
+
+                // need to push variant value to stack for access after identification
+                let second = self
+                    .de
+                    .data
+                    .get_list_item(a, Data::Number::one())
+                    .or_else(wrap_err)?;
+
+                self.de.value_stack.push(second);
+
+                first
+            }
+            ExpressionDataType::Symbol => a,
+            _ => Err(GarnishSerializationError::from(
+                format!("Expected List, found {:?}", t).as_str(),
+            ))?,
+        };
+
+        let sym = self.de.create_symbol_string(sym_a)?;
+        // stored as full name should be split with following pattern
+        // resulting in 2 elements
+        let mut parts = sym.split("::");
+        parts.next(); // drop first value, don't need currently
+        let enum_part = parts.next().ok_or_else(|| {
+            GarnishSerializationError::from(
+                format!("Could not get enum value from symbols string {:?}", sym).as_str(),
+            )
+        })?;
+
+        let deserializer: StrDeserializer<'_, GarnishSerializationError<Data>> =
+            enum_part.into_deserializer();
+        let variant_value = seed.deserialize(deserializer)?;
+
+        Ok((variant_value, self))
+    }
+}
+
+impl<'a, 'data, Data> VariantAccess<'data> for EnumAccessor<'a, 'data, Data>
+    where
+        Data: GarnishLangRuntimeData,
+        Data::Number: GarnishNumberConversions,
+        Data::Size: From<usize>,
+        Data::Size: Into<usize>,
+        Data::Char: From<char>,
+        Data::Char: Into<char>,
+        Data::Byte: From<u8>,
+        Data::Byte: Into<u8>,
+{
+    type Error = GarnishSerializationError<Data>;
+    // unit variants are stored simply as a symbol
+    // all other variants are store as a list
+    // with the full variant name as the first item
+    // and the data, if any, as the second item
+
+    fn unit_variant(self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value, Self::Error>
+        where
+            T: DeserializeSeed<'data>,
+    {
+        seed.deserialize(self.de)
+    }
+
+    fn tuple_variant<V>(self, len: usize, visitor: V) -> Result<V::Value, Self::Error>
+        where
+            V: Visitor<'data>,
+    {
+        self.de.deserialize_tuple(len, visitor)
+    }
+
+    fn struct_variant<V>(
+        self,
+        fields: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+        where
+            V: Visitor<'data>,
+    {
+        self.de.deserialize_struct("", fields, visitor)
     }
 }
 
@@ -1041,6 +1197,102 @@ mod tests {
                 data.end_list()
             },
             SomeStruct {
+                one: 100,
+                two: 200,
+                three: 300,
+            },
+        );
+    }
+
+    #[derive(Debug, PartialEq, Deserialize)]
+    enum SomeEnum {
+        SomeUnitVariant,
+        SomeNewTypeVariant(i32),
+        SomeTupleVariant(i32, i32),
+        SomeStructVariant { one: i32, two: i32, three: i32 },
+    }
+
+    #[test]
+    fn deserialize_unit_variant() {
+        assert_deserializes(
+            |data| data.parse_add_symbol("SomeEnum::SomeUnitVariant"),
+            SomeEnum::SomeUnitVariant,
+        );
+    }
+
+    #[test]
+    fn deserialize_newtype_variant() {
+        assert_deserializes(
+            |data| {
+                let value = data.add_number(SimpleNumber::Integer(100)).unwrap();
+
+                let variant = data
+                    .parse_add_symbol("SomeEnum::SomeNewTypeVariant")
+                    .unwrap();
+
+                data.start_list(2).unwrap();
+                data.add_to_list(variant, false).unwrap();
+                data.add_to_list(value, false).unwrap();
+                data.end_list()
+            },
+            SomeEnum::SomeNewTypeVariant(100),
+        );
+    }
+
+    #[test]
+    fn deserialize_tuple_variant() {
+        assert_deserializes(
+            |data| {
+                let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
+                let num2 = data.add_number(SimpleNumber::Integer(200)).unwrap();
+                data.start_list(2).unwrap();
+                data.add_to_list(num1, false).unwrap();
+                data.add_to_list(num2, false).unwrap();
+                let value = data.end_list().unwrap();
+
+                let variant = data.parse_add_symbol("SomeEnum::SomeTupleVariant").unwrap();
+
+                data.start_list(2).unwrap();
+                data.add_to_list(variant, false).unwrap();
+                data.add_to_list(value, false).unwrap();
+                data.end_list()
+            },
+            SomeEnum::SomeTupleVariant(100, 200),
+        );
+    }
+
+    #[test]
+    fn deserialize_struct_variant() {
+        assert_deserializes(
+            |data| {
+                let sym = data.parse_add_symbol("one").unwrap();
+                let num = data.add_number(SimpleNumber::Integer(100)).unwrap();
+                let pair1 = data.add_pair((sym, num)).unwrap();
+
+                let sym = data.parse_add_symbol("two").unwrap();
+                let num = data.add_number(SimpleNumber::Integer(200)).unwrap();
+                let pair2 = data.add_pair((sym, num)).unwrap();
+
+                let sym = data.parse_add_symbol("three").unwrap();
+                let num = data.add_number(SimpleNumber::Integer(300)).unwrap();
+                let pair3 = data.add_pair((sym, num)).unwrap();
+
+                data.start_list(3).unwrap();
+                data.add_to_list(pair1, true).unwrap();
+                data.add_to_list(pair2, true).unwrap();
+                data.add_to_list(pair3, true).unwrap();
+                let value = data.end_list().unwrap();
+
+                let variant = data
+                    .parse_add_symbol("SomeEnum::SomeStructVariant")
+                    .unwrap();
+
+                data.start_list(2).unwrap();
+                data.add_to_list(variant, false).unwrap();
+                data.add_to_list(value, false).unwrap();
+                data.end_list()
+            },
+            SomeEnum::SomeStructVariant {
                 one: 100,
                 two: 200,
                 three: 300,
