@@ -6,7 +6,7 @@ use serde::ser::{
 };
 use serde::{Serialize, Serializer};
 
-use garnish_traits::{GarnishLangRuntimeData, GarnishNumber, TypeConstants};
+use garnish_traits::{GarnishLangRuntimeData, TypeConstants};
 
 use crate::error::{wrap_err, GarnishSerializationError};
 
@@ -93,7 +93,6 @@ where
     variant_name_behavior: VariantNameBehavior,
     struct_sym: Option<Data::Size>,
     pending_key: Option<Data::Size>,
-    data_name_meta_key: String,
 }
 
 impl<'a, Data> GarnishDataSerializer<'a, Data>
@@ -114,7 +113,6 @@ where
             variant_name_behavior: VariantNameBehavior::Full,
             struct_sym: None,
             pending_key: None,
-            data_name_meta_key: String::from("__data_name__"),
         }
     }
 
@@ -151,7 +149,9 @@ where
 
         match self.struct_sym {
             Some(addr) => {
-                self.data.start_list(Data::Size::from(2)).or_else(wrap_err)?;
+                self.data
+                    .start_list(Data::Size::from(2))
+                    .or_else(wrap_err)?;
 
                 self.data.add_to_list(addr, false).or_else(wrap_err)?;
                 self.data.add_to_list(list_addr, false).or_else(wrap_err)?;
@@ -358,8 +358,10 @@ where
         len: usize,
     ) -> Result<Self::SerializeTupleStruct, Self::Error> {
         match self.struct_typing_behavior {
-            StructBehavior::IncludeTyping => self.struct_sym = Some(self.data.parse_add_symbol(name).or_else(wrap_err)?),
-            StructBehavior::ExcludeTyping => ()
+            StructBehavior::IncludeTyping => {
+                self.struct_sym = Some(self.data.parse_add_symbol(name).or_else(wrap_err)?)
+            }
+            StructBehavior::ExcludeTyping => (),
         }
         self.serialize_seq(Some(len))
     }
@@ -385,8 +387,10 @@ where
         len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
         match self.struct_typing_behavior {
-            StructBehavior::IncludeTyping => self.struct_sym = Some(self.data.parse_add_symbol(name).or_else(wrap_err)?),
-            StructBehavior::ExcludeTyping => ()
+            StructBehavior::IncludeTyping => {
+                self.struct_sym = Some(self.data.parse_add_symbol(name).or_else(wrap_err)?)
+            }
+            StructBehavior::ExcludeTyping => (),
         }
         self.serialize_seq(Some(len))
     }
@@ -867,7 +871,6 @@ mod tests {
     fn serialize_unit_struct_as_list() {
         let mut data = SimpleRuntimeData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
-        let data_key = serializer.data_name_meta_key.clone();
 
         serializer.set_unit_struct_behavior(StructBehavior::IncludeTyping);
 
@@ -1142,7 +1145,6 @@ mod compound {
 
         let mut data = SimpleRuntimeData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
-        let data_key = serializer.data_name_meta_key.clone();
         serializer.set_unit_struct_behavior(StructBehavior::IncludeTyping);
 
         let mut serializer = serializer.serialize_tuple_struct("MyStruct", 3).unwrap();
@@ -1255,7 +1257,6 @@ mod compound {
 
         let mut data = SimpleRuntimeData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
-        let data_key = serializer.data_name_meta_key.clone();
         serializer.set_unit_struct_behavior(StructBehavior::IncludeTyping);
 
         let mut serializer = serializer.serialize_tuple_struct("MyTuple", 3).unwrap();

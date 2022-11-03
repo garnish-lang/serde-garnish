@@ -53,6 +53,11 @@ mod error;
 /// | custom_type       | Custom            | ?                                     |
 ///
 ///
+///
+
+pub use serializer::*;
+pub use deserializer::GarnishDataDeserializer;
+pub use error::GarnishSerializationError;
 
 #[cfg(test)]
 mod tests {

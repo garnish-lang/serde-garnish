@@ -1,5 +1,4 @@
 use std::convert::From;
-use std::fmt::format;
 use std::ops::Add;
 
 use serde::de::value::StrDeserializer;
@@ -13,7 +12,7 @@ use garnish_traits::{ExpressionDataType, GarnishLangRuntimeData, TypeConstants};
 use crate::error::{wrap_err, GarnishSerializationError};
 use crate::serializer::GarnishNumberConversions;
 
-struct GarnishDataDeserializer<'data, Data>
+pub struct GarnishDataDeserializer<'data, Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
@@ -132,11 +131,11 @@ where
 {
     type Error = GarnishSerializationError<Data>;
 
-    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_any<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'data>,
     {
-        todo!()
+        unimplemented!()
     }
 
     fn deserialize_bool<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -489,11 +488,11 @@ where
         self.deserialize_string(visitor)
     }
 
-    fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_ignored_any<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'data>,
     {
-        todo!()
+        unimplemented!()
     }
 }
 
@@ -661,30 +660,30 @@ where
 }
 
 struct EnumAccessor<'a, 'data, Data>
-    where
-        'data: 'a,
-        Data: GarnishLangRuntimeData,
-        Data::Number: GarnishNumberConversions,
-        Data::Size: From<usize>,
-        Data::Size: Into<usize>,
-        Data::Char: From<char>,
-        Data::Char: Into<char>,
-        Data::Byte: From<u8>,
-        Data::Byte: Into<u8>,
+where
+    'data: 'a,
+    Data: GarnishLangRuntimeData,
+    Data::Number: GarnishNumberConversions,
+    Data::Size: From<usize>,
+    Data::Size: Into<usize>,
+    Data::Char: From<char>,
+    Data::Char: Into<char>,
+    Data::Byte: From<u8>,
+    Data::Byte: Into<u8>,
 {
     de: &'a mut GarnishDataDeserializer<'data, Data>,
 }
 
 impl<'a, 'data, Data> EnumAccessor<'a, 'data, Data>
-    where
-        Data: GarnishLangRuntimeData,
-        Data::Number: GarnishNumberConversions,
-        Data::Size: From<usize>,
-        Data::Size: Into<usize>,
-        Data::Char: From<char>,
-        Data::Char: Into<char>,
-        Data::Byte: From<u8>,
-        Data::Byte: Into<u8>,
+where
+    Data: GarnishLangRuntimeData,
+    Data::Number: GarnishNumberConversions,
+    Data::Size: From<usize>,
+    Data::Size: Into<usize>,
+    Data::Char: From<char>,
+    Data::Char: Into<char>,
+    Data::Byte: From<u8>,
+    Data::Byte: Into<u8>,
 {
     pub fn new(
         de: &'a mut GarnishDataDeserializer<'data, Data>,
@@ -694,22 +693,22 @@ impl<'a, 'data, Data> EnumAccessor<'a, 'data, Data>
 }
 
 impl<'a, 'data, Data> EnumAccess<'data> for EnumAccessor<'a, 'data, Data>
-    where
-        Data: GarnishLangRuntimeData,
-        Data::Number: GarnishNumberConversions,
-        Data::Size: From<usize>,
-        Data::Size: Into<usize>,
-        Data::Char: From<char>,
-        Data::Char: Into<char>,
-        Data::Byte: From<u8>,
-        Data::Byte: Into<u8>,
+where
+    Data: GarnishLangRuntimeData,
+    Data::Number: GarnishNumberConversions,
+    Data::Size: From<usize>,
+    Data::Size: Into<usize>,
+    Data::Char: From<char>,
+    Data::Char: Into<char>,
+    Data::Byte: From<u8>,
+    Data::Byte: Into<u8>,
 {
     type Error = GarnishSerializationError<Data>;
     type Variant = Self;
 
     fn variant_seed<V>(self, seed: V) -> Result<(V::Value, Self::Variant), Self::Error>
-        where
-            V: DeserializeSeed<'data>,
+    where
+        V: DeserializeSeed<'data>,
     {
         let (t, a) = self.de.value()?;
         let sym_a = match t {
@@ -757,15 +756,15 @@ impl<'a, 'data, Data> EnumAccess<'data> for EnumAccessor<'a, 'data, Data>
 }
 
 impl<'a, 'data, Data> VariantAccess<'data> for EnumAccessor<'a, 'data, Data>
-    where
-        Data: GarnishLangRuntimeData,
-        Data::Number: GarnishNumberConversions,
-        Data::Size: From<usize>,
-        Data::Size: Into<usize>,
-        Data::Char: From<char>,
-        Data::Char: Into<char>,
-        Data::Byte: From<u8>,
-        Data::Byte: Into<u8>,
+where
+    Data: GarnishLangRuntimeData,
+    Data::Number: GarnishNumberConversions,
+    Data::Size: From<usize>,
+    Data::Size: Into<usize>,
+    Data::Char: From<char>,
+    Data::Char: Into<char>,
+    Data::Byte: From<u8>,
+    Data::Byte: Into<u8>,
 {
     type Error = GarnishSerializationError<Data>;
     // unit variants are stored simply as a symbol
@@ -778,15 +777,15 @@ impl<'a, 'data, Data> VariantAccess<'data> for EnumAccessor<'a, 'data, Data>
     }
 
     fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value, Self::Error>
-        where
-            T: DeserializeSeed<'data>,
+    where
+        T: DeserializeSeed<'data>,
     {
         seed.deserialize(self.de)
     }
 
     fn tuple_variant<V>(self, len: usize, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'data>,
+    where
+        V: Visitor<'data>,
     {
         self.de.deserialize_tuple(len, visitor)
     }
@@ -796,8 +795,8 @@ impl<'a, 'data, Data> VariantAccess<'data> for EnumAccessor<'a, 'data, Data>
         fields: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'data>,
+    where
+        V: Visitor<'data>,
     {
         self.de.deserialize_struct("", fields, visitor)
     }
@@ -844,7 +843,7 @@ mod tests {
         assert_eq!(v.unwrap(), expected_value);
     }
 
-    fn assert_fails<SetupF, Type>(setup: SetupF, expected_value: Type)
+    fn assert_fails<SetupF, Type>(setup: SetupF)
     where
         SetupF: FnOnce(&mut SimpleRuntimeData) -> Result<usize, DataError>,
         Type: DeserializeOwned + PartialEq + Debug,
@@ -1104,36 +1103,30 @@ mod tests {
 
     #[test]
     fn deserialize_tuple_to_few() {
-        assert_fails(
-            |data| {
-                let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
-                let num2 = data.add_number(SimpleNumber::Integer(200)).unwrap();
-                data.start_list(2).unwrap();
-                data.add_to_list(num1, false).unwrap();
-                data.add_to_list(num2, false).unwrap();
-                data.end_list()
-            },
-            (100, 200, 300),
-        );
+        assert_fails::<_, (i32, i32, i32)>(|data| {
+            let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
+            let num2 = data.add_number(SimpleNumber::Integer(200)).unwrap();
+            data.start_list(2).unwrap();
+            data.add_to_list(num1, false).unwrap();
+            data.add_to_list(num2, false).unwrap();
+            data.end_list()
+        });
     }
 
     #[test]
     fn deserialize_tuple_to_many() {
-        assert_fails(
-            |data| {
-                let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
-                let num2 = data.add_number(SimpleNumber::Integer(200)).unwrap();
-                let num3 = data.add_number(SimpleNumber::Integer(300)).unwrap();
-                let num4 = data.add_number(SimpleNumber::Integer(400)).unwrap();
-                data.start_list(4).unwrap();
-                data.add_to_list(num1, false).unwrap();
-                data.add_to_list(num2, false).unwrap();
-                data.add_to_list(num3, false).unwrap();
-                data.add_to_list(num4, false).unwrap();
-                data.end_list()
-            },
-            (100, 200, 300),
-        );
+        assert_fails::<_, (i32, i32, i32)>(|data| {
+            let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
+            let num2 = data.add_number(SimpleNumber::Integer(200)).unwrap();
+            let num3 = data.add_number(SimpleNumber::Integer(300)).unwrap();
+            let num4 = data.add_number(SimpleNumber::Integer(400)).unwrap();
+            data.start_list(4).unwrap();
+            data.add_to_list(num1, false).unwrap();
+            data.add_to_list(num2, false).unwrap();
+            data.add_to_list(num3, false).unwrap();
+            data.add_to_list(num4, false).unwrap();
+            data.end_list()
+        });
     }
 
     #[test]
@@ -1174,28 +1167,30 @@ mod tests {
         three: i32,
     }
 
+    fn add_some_struct(data: &mut SimpleRuntimeData) -> Result<usize, DataError> {
+        let sym1 = data.parse_add_symbol("one").unwrap();
+        let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
+        let pair1 = data.add_pair((sym1, num1)).unwrap();
+
+        let sym1 = data.parse_add_symbol("two").unwrap();
+        let num1 = data.add_number(SimpleNumber::Integer(200)).unwrap();
+        let pair2 = data.add_pair((sym1, num1)).unwrap();
+
+        let sym1 = data.parse_add_symbol("three").unwrap();
+        let num1 = data.add_number(SimpleNumber::Integer(300)).unwrap();
+        let pair3 = data.add_pair((sym1, num1)).unwrap();
+
+        data.start_list(3).unwrap();
+        data.add_to_list(pair1, true).unwrap();
+        data.add_to_list(pair2, true).unwrap();
+        data.add_to_list(pair3, true).unwrap();
+        data.end_list()
+    }
+
     #[test]
     fn deserialize_struct() {
         assert_deserializes(
-            |data| {
-                let sym1 = data.parse_add_symbol("one").unwrap();
-                let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
-                let pair1 = data.add_pair((sym1, num1)).unwrap();
-
-                let sym1 = data.parse_add_symbol("two").unwrap();
-                let num1 = data.add_number(SimpleNumber::Integer(200)).unwrap();
-                let pair2 = data.add_pair((sym1, num1)).unwrap();
-
-                let sym1 = data.parse_add_symbol("three").unwrap();
-                let num1 = data.add_number(SimpleNumber::Integer(300)).unwrap();
-                let pair3 = data.add_pair((sym1, num1)).unwrap();
-
-                data.start_list(3).unwrap();
-                data.add_to_list(pair1, true).unwrap();
-                data.add_to_list(pair2, true).unwrap();
-                data.add_to_list(pair3, true).unwrap();
-                data.end_list()
-            },
+            add_some_struct,
             SomeStruct {
                 one: 100,
                 two: 200,
@@ -1265,23 +1260,7 @@ mod tests {
     fn deserialize_struct_variant() {
         assert_deserializes(
             |data| {
-                let sym = data.parse_add_symbol("one").unwrap();
-                let num = data.add_number(SimpleNumber::Integer(100)).unwrap();
-                let pair1 = data.add_pair((sym, num)).unwrap();
-
-                let sym = data.parse_add_symbol("two").unwrap();
-                let num = data.add_number(SimpleNumber::Integer(200)).unwrap();
-                let pair2 = data.add_pair((sym, num)).unwrap();
-
-                let sym = data.parse_add_symbol("three").unwrap();
-                let num = data.add_number(SimpleNumber::Integer(300)).unwrap();
-                let pair3 = data.add_pair((sym, num)).unwrap();
-
-                data.start_list(3).unwrap();
-                data.add_to_list(pair1, true).unwrap();
-                data.add_to_list(pair2, true).unwrap();
-                data.add_to_list(pair3, true).unwrap();
-                let value = data.end_list().unwrap();
+                let value = add_some_struct(data).unwrap();
 
                 let variant = data
                     .parse_add_symbol("SomeEnum::SomeStructVariant")
