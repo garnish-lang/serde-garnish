@@ -2,12 +2,12 @@ use std::convert::From;
 use std::fmt::format;
 use std::ops::Add;
 
-use serde::de::{DeserializeSeed, SeqAccess, Visitor};
+use serde::de::{DeserializeSeed, MapAccess, SeqAccess, Visitor};
 use serde::Deserializer;
 
 use garnish_traits::{ExpressionDataType, GarnishLangRuntimeData, TypeConstants};
 
-use crate::error::{GarnishSerializationError, wrap_err};
+use crate::error::{wrap_err, GarnishSerializationError};
 use crate::serializer::GarnishNumberConversions;
 
 struct GarnishDataDeserializer<'data, Data>
@@ -22,7 +22,7 @@ where
     Data::Byte: Into<u8>,
 {
     data: &'data Data,
-    value_stack: Vec<Data::Size>
+    value_stack: Vec<Data::Size>,
 }
 
 impl<'data, Data> GarnishDataDeserializer<'data, Data>
@@ -37,17 +37,26 @@ where
     Data::Byte: Into<u8>,
 {
     pub fn new(data: &'data Data) -> Self {
-        Self { data, value_stack: vec![data.get_current_value().unwrap_or(Data::Size::zero())] }
+        Self {
+            data,
+            value_stack: vec![data.get_current_value().unwrap_or(Data::Size::zero())],
+        }
     }
 
     pub fn new_for_value(data: &'data Data, value_addr: Data::Size) -> Self {
-        Self { data, value_stack: vec![value_addr] }
+        Self {
+            data,
+            value_stack: vec![value_addr],
+        }
     }
 
     pub fn value(
         &self,
     ) -> Result<(ExpressionDataType, Data::Size), GarnishSerializationError<Data>> {
-        let a = *self.value_stack.last().ok_or(GarnishSerializationError::from("No value to deserialize."))?;
+        let a = *self
+            .value_stack
+            .last()
+            .ok_or(GarnishSerializationError::from("No value to deserialize."))?;
         let t = self
             .data
             .get_data_type(a)
@@ -399,7 +408,13 @@ where
     where
         V: Visitor<'data>,
     {
-        todo!()
+        let (t, a) = self.value()?;
+        match t {
+            ExpressionDataType::List => visitor.visit_map(ListAccessor::new(self)?),
+            _ => Err(GarnishSerializationError::from(
+                format!("Expected Unit, found {:?}", t).as_str(),
+            )),
+        }
     }
 
     fn deserialize_struct<V>(
@@ -488,7 +503,13 @@ where
         let (_t, a) = de.value()?;
         let len = de.data.get_list_len(a).or_else(wrap_err)?;
         if len.into() > max {
-            return Err(GarnishSerializationError::from(format!("Cannot deserialize list like value. Expected maximum of {} items, found {}", max, len).as_str()));
+            return Err(GarnishSerializationError::from(
+                format!(
+                    "Cannot deserialize list like value. Expected maximum of {} items, found {}",
+                    max, len
+                )
+                .as_str(),
+            ));
         }
         Ok(Self {
             de,
@@ -518,7 +539,11 @@ where
         match self.i < self.len {
             true => {
                 let (_t, a) = self.de.value()?;
-                let i = self.de.data.get_list_item(a, Data::size_to_number(self.i)).or_else(wrap_err)?;
+                let i = self
+                    .de
+                    .data
+                    .get_list_item(a, Data::size_to_number(self.i))
+                    .or_else(wrap_err)?;
                 self.de.value_stack.push(i);
                 self.i = self.i.add(Data::Size::one());
 
@@ -529,30 +554,87 @@ where
 
                 r
             }
-            false => Ok(None)
+            false => Ok(None),
         }
+    }
+}
+
+impl<'a, 'data, Data> MapAccess<'data> for ListAccessor<'a, 'data, Data>
+where
+    Data: GarnishLangRuntimeData,
+    Data::Number: GarnishNumberConversions,
+    Data::Size: From<usize>,
+    Data::Size: Into<usize>,
+    Data::Char: From<char>,
+    Data::Char: Into<char>,
+    Data::Byte: From<u8>,
+    Data::Byte: Into<u8>,
+{
+    type Error = GarnishSerializationError<Data>;
+
+    fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Self::Error>
+    where
+        K: DeserializeSeed<'data>,
+    {
+        match self.i < self.len {
+            true => {
+                let (_t, a) = self.de.value()?;
+                let i = self
+                    .de
+                    .data
+                    .get_list_item(a, Data::size_to_number(self.i))
+                    .or_else(wrap_err)?;
+                let (key, value) = self.de.data.get_pair(i).or_else(wrap_err)?;
+                self.de.value_stack.push(key);
+
+                let r = seed.deserialize(&mut *self.de).map(Some);
+
+                // done with key
+                self.de.value_stack.pop();
+
+                // set up value for next_value_seed
+                self.de.value_stack.push(value);
+
+                r
+            }
+            false => Ok(None),
+        }
+    }
+
+    fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error>
+    where
+        V: DeserializeSeed<'data>,
+    {
+        // won't be called unless next returns non-None value
+        // so don't need to check length again
+        // value addr was set up by next_key_seed
+        // just need to deserialize
+        seed.deserialize(&mut *self.de)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::fmt::{Debug, Formatter};
     use std::marker::PhantomData;
 
-    use serde::{Deserialize, Deserializer};
     use serde::de::{DeserializeOwned, Error, Visitor};
+    use serde::{Deserialize, Deserializer};
 
-    use garnish_data::{DataError, SimpleRuntimeData};
     use garnish_data::data::SimpleNumber;
+    use garnish_data::{DataError, SimpleRuntimeData};
     use garnish_traits::GarnishLangRuntimeData;
 
     use crate::deserializer::GarnishDataDeserializer;
     use crate::error::GarnishSerializationError;
 
-    fn deserialize<SetupF, Type>(setup: SetupF) -> Result<Type, GarnishSerializationError<SimpleRuntimeData>>
-        where
-            SetupF: FnOnce(&mut SimpleRuntimeData) -> Result<usize, DataError>,
-            Type: DeserializeOwned + PartialEq + Debug,
+    fn deserialize<SetupF, Type>(
+        setup: SetupF,
+    ) -> Result<Type, GarnishSerializationError<SimpleRuntimeData>>
+    where
+        SetupF: FnOnce(&mut SimpleRuntimeData) -> Result<usize, DataError>,
+        Type: DeserializeOwned + PartialEq + Debug,
     {
         let mut data = SimpleRuntimeData::new();
         let addr = setup(&mut data).unwrap();
@@ -573,9 +655,9 @@ mod tests {
     }
 
     fn assert_fails<SetupF, Type>(setup: SetupF, expected_value: Type)
-        where
-            SetupF: FnOnce(&mut SimpleRuntimeData) -> Result<usize, DataError>,
-            Type: DeserializeOwned + PartialEq + Debug,
+    where
+        SetupF: FnOnce(&mut SimpleRuntimeData) -> Result<usize, DataError>,
+        Type: DeserializeOwned + PartialEq + Debug,
     {
         assert!(deserialize::<SetupF, Type>(setup).is_err());
     }
@@ -861,6 +943,37 @@ mod tests {
                 data.end_list()
             },
             (100, 200, 300),
+        );
+    }
+
+    #[test]
+    fn deserialize_map() {
+        let mut expected = HashMap::new();
+        expected.insert("one".to_string(), 100);
+        expected.insert("two".to_string(), 200);
+        expected.insert("three".to_string(), 300);
+
+        assert_fails(
+            |data| {
+                let sym1 = data.parse_add_symbol("one").unwrap();
+                let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
+                let pair1 = data.add_pair((sym1, num1)).unwrap();
+
+                let sym1 = data.parse_add_symbol("two").unwrap();
+                let num1 = data.add_number(SimpleNumber::Integer(200)).unwrap();
+                let pair2 = data.add_pair((sym1, num1)).unwrap();
+
+                let sym1 = data.parse_add_symbol("three").unwrap();
+                let num1 = data.add_number(SimpleNumber::Integer(300)).unwrap();
+                let pair3 = data.add_pair((sym1, num1)).unwrap();
+
+                data.start_list(3).unwrap();
+                data.add_to_list(pair1, true).unwrap();
+                data.add_to_list(pair2, true).unwrap();
+                data.add_to_list(pair3, true).unwrap();
+                data.end_list()
+            },
+            expected,
         );
     }
 }
