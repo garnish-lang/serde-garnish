@@ -3,7 +3,7 @@ use std::fmt::{Debug, Display, Formatter};
 
 use garnish_traits::GarnishLangRuntimeData;
 
-use crate::serializer::GarnishNumberConversions;
+use crate::traits::GarnishNumberConversions;
 
 pub struct GarnishSerializationError<Data>
 where

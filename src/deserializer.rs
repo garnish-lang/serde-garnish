@@ -10,7 +10,7 @@ use serde::Deserializer;
 use garnish_traits::{ExpressionDataType, GarnishLangRuntimeData, TypeConstants};
 
 use crate::error::{wrap_err, GarnishSerializationError};
-use crate::serializer::GarnishNumberConversions;
+use crate::GarnishNumberConversions;
 
 pub struct GarnishDataDeserializer<'data, Data>
 where

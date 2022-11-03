@@ -1,10 +1,3 @@
-mod deserializer;
-mod deserialize;
-mod serializer;
-mod serialize;
-mod visitor;
-mod error;
-
 /// ## Serialization Type Conversions
 /// Mapping from Serde data model to Garnish value
 /// | *Serde Type*                          | *Example*                         | *Garnish Value*               | *Garnish Type*                |
@@ -52,9 +45,17 @@ mod error;
 /// | external_value    | External          | ?                                     |
 /// | custom_type       | Custom            | ?                                     |
 ///
-///
-///
 
+
+mod deserializer;
+mod deserialize;
+mod serializer;
+mod serialize;
+mod visitor;
+mod error;
+mod traits;
+
+pub use traits::*;
 pub use serializer::*;
 pub use deserializer::GarnishDataDeserializer;
 pub use error::GarnishSerializationError;
