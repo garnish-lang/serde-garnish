@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use serde::ser::{
     SerializeMap, SerializeSeq, SerializeStruct, SerializeStructVariant, SerializeTuple,
     SerializeTupleStruct, SerializeTupleVariant,
@@ -9,27 +7,10 @@ use serde::{Serialize, Serializer};
 use garnish_traits::{GarnishLangRuntimeData, TypeConstants};
 
 use crate::error::{wrap_err, GarnishSerializationError};
-use crate::GarnishNumberConversions;
-
-
-#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
-pub enum OptionalBehavior {
-    UnitSymbol,
-    UnitValue,
-}
-
-#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
-pub enum StructBehavior {
-    ExcludeTyping,
-    IncludeTyping,
-}
-
-#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
-pub enum VariantNameBehavior {
-    Short,
-    Full,
-    Index,
-}
+use crate::{
+    GarnishNumberConversions, GarnishSerializationOptions, OptionalBehavior, StructBehavior,
+    VariantNameBehavior,
+};
 
 pub struct GarnishDataSerializer<'a, Data>
 where
@@ -42,11 +23,9 @@ where
 {
     data: &'a mut Data,
     data_addr: Option<Data::Size>,
-    optional_behavior: OptionalBehavior,
-    struct_typing_behavior: StructBehavior,
-    variant_name_behavior: VariantNameBehavior,
     struct_sym: Option<Data::Size>,
     pending_key: Option<Data::Size>,
+    options: GarnishSerializationOptions,
 }
 
 impl<'a, Data> GarnishDataSerializer<'a, Data>
@@ -62,11 +41,19 @@ where
         GarnishDataSerializer {
             data,
             data_addr: None,
-            optional_behavior: OptionalBehavior::UnitValue,
-            struct_typing_behavior: StructBehavior::ExcludeTyping,
-            variant_name_behavior: VariantNameBehavior::Full,
+            options: GarnishSerializationOptions::new(),
             struct_sym: None,
             pending_key: None,
+        }
+    }
+
+    pub fn new_with_options(data: &'a mut Data, options: GarnishSerializationOptions) -> Self {
+        Self {
+            data,
+            data_addr: None,
+            struct_sym: None,
+            pending_key: None,
+            options,
         }
     }
 
@@ -84,18 +71,6 @@ where
         self.data
             .add_number(Data::Number::from(v))
             .or_else(wrap_err)
-    }
-
-    pub fn set_optional_behavior(&mut self, behavior: OptionalBehavior) {
-        self.optional_behavior = behavior;
-    }
-
-    pub fn set_unit_struct_behavior(&mut self, behavior: StructBehavior) {
-        self.struct_typing_behavior = behavior;
-    }
-
-    pub fn set_variant_name_behavior(&mut self, behavior: VariantNameBehavior) {
-        self.variant_name_behavior = behavior;
     }
 
     fn end_struct_like(&mut self) -> Result<Data::Size, GarnishSerializationError<Data>> {
@@ -212,7 +187,7 @@ where
     }
 
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
-        match self.optional_behavior {
+        match self.options.optional_behavior {
             OptionalBehavior::UnitSymbol => self.data.parse_add_symbol("none").or_else(wrap_err),
             OptionalBehavior::UnitValue => self.data.add_unit().or_else(wrap_err),
         }
@@ -230,7 +205,7 @@ where
     }
 
     fn serialize_unit_struct(self, name: &'static str) -> Result<Self::Ok, Self::Error> {
-        match self.struct_typing_behavior {
+        match self.options.struct_typing_behavior {
             StructBehavior::ExcludeTyping => self.data.add_unit().or_else(wrap_err),
             StructBehavior::IncludeTyping => {
                 let name_addr = self.data.parse_add_symbol(name).or_else(wrap_err)?;
@@ -250,7 +225,7 @@ where
         variant_index: u32,
         variant: &'static str,
     ) -> Result<Self::Ok, Self::Error> {
-        match self.variant_name_behavior {
+        match self.options.variant_name_behavior {
             VariantNameBehavior::Short => self.data.parse_add_symbol(variant).or_else(wrap_err),
             VariantNameBehavior::Full => self
                 .data
@@ -311,7 +286,7 @@ where
         name: &'static str,
         len: usize,
     ) -> Result<Self::SerializeTupleStruct, Self::Error> {
-        match self.struct_typing_behavior {
+        match self.options.struct_typing_behavior {
             StructBehavior::IncludeTyping => {
                 self.struct_sym = Some(self.data.parse_add_symbol(name).or_else(wrap_err)?)
             }
@@ -340,7 +315,7 @@ where
         name: &'static str,
         len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
-        match self.struct_typing_behavior {
+        match self.options.struct_typing_behavior {
             StructBehavior::IncludeTyping => {
                 self.struct_sym = Some(self.data.parse_add_symbol(name).or_else(wrap_err)?)
             }
@@ -584,6 +559,7 @@ mod tests {
     use crate::serializer::{
         GarnishDataSerializer, OptionalBehavior, StructBehavior, VariantNameBehavior,
     };
+    use crate::GarnishSerializationOptions;
 
     #[test]
     fn serialize_true() {
@@ -753,8 +729,10 @@ mod tests {
     #[test]
     fn serialize_none_symbol() {
         let mut data = SimpleRuntimeData::new();
-        let mut serializer = GarnishDataSerializer::new(&mut data);
-        serializer.set_optional_behavior(OptionalBehavior::UnitSymbol);
+        let mut serializer = GarnishDataSerializer::new_with_options(
+            &mut data,
+            GarnishSerializationOptions::new().optional_behavior(OptionalBehavior::UnitSymbol),
+        );
 
         let addr = serializer.serialize_none().unwrap();
 
@@ -767,8 +745,10 @@ mod tests {
     #[test]
     fn serialize_some_as_value_when_unit_symbol() {
         let mut data = SimpleRuntimeData::new();
-        let mut serializer = GarnishDataSerializer::new(&mut data);
-        serializer.set_optional_behavior(OptionalBehavior::UnitSymbol);
+        let mut serializer = GarnishDataSerializer::new_with_options(
+            &mut data,
+            GarnishSerializationOptions::new().optional_behavior(OptionalBehavior::UnitSymbol),
+        );
 
         let addr = serializer.serialize_some(&10).unwrap();
 
@@ -824,9 +804,10 @@ mod tests {
     #[test]
     fn serialize_unit_struct_as_list() {
         let mut data = SimpleRuntimeData::new();
-        let mut serializer = GarnishDataSerializer::new(&mut data);
-
-        serializer.set_unit_struct_behavior(StructBehavior::IncludeTyping);
+        let mut serializer = GarnishDataSerializer::new_with_options(
+            &mut data,
+            GarnishSerializationOptions::new().struct_typing_behavior(StructBehavior::IncludeTyping),
+        );
 
         let addr = serializer.serialize_unit_struct("PhantomData").unwrap();
 
@@ -860,8 +841,10 @@ mod tests {
     #[test]
     fn serialize_variant_short_name() {
         let mut data = SimpleRuntimeData::new();
-        let mut serializer = GarnishDataSerializer::new(&mut data);
-        serializer.set_variant_name_behavior(VariantNameBehavior::Short);
+        let mut serializer = GarnishDataSerializer::new_with_options(
+            &mut data,
+            GarnishSerializationOptions::new().variant_name_behavior(VariantNameBehavior::Short),
+        );
 
         let addr = serializer
             .serialize_unit_variant("MyEnum", 100, "Value1")
@@ -876,8 +859,10 @@ mod tests {
     #[test]
     fn serialize_variant_index() {
         let mut data = SimpleRuntimeData::new();
-        let mut serializer = GarnishDataSerializer::new(&mut data);
-        serializer.set_variant_name_behavior(VariantNameBehavior::Index);
+        let mut serializer = GarnishDataSerializer::new_with_options(
+            &mut data,
+            GarnishSerializationOptions::new().variant_name_behavior(VariantNameBehavior::Index),
+        );
 
         let addr = serializer
             .serialize_unit_variant("MyEnum", 100, "Value1")
@@ -913,8 +898,10 @@ mod tests {
     #[test]
     fn serialize_new_type_variant_short_name() {
         let mut data = SimpleRuntimeData::new();
-        let mut serializer = GarnishDataSerializer::new(&mut data);
-        serializer.set_variant_name_behavior(VariantNameBehavior::Short);
+        let mut serializer = GarnishDataSerializer::new_with_options(
+            &mut data,
+            GarnishSerializationOptions::new().variant_name_behavior(VariantNameBehavior::Short),
+        );
 
         let addr = serializer
             .serialize_newtype_variant("MyEnum", 100, "Value1", &200)
@@ -935,8 +922,10 @@ mod tests {
     #[test]
     fn serialize_new_type_variant_index() {
         let mut data = SimpleRuntimeData::new();
-        let mut serializer = GarnishDataSerializer::new(&mut data);
-        serializer.set_variant_name_behavior(VariantNameBehavior::Index);
+        let mut serializer = GarnishDataSerializer::new_with_options(
+            &mut data,
+            GarnishSerializationOptions::new().variant_name_behavior(VariantNameBehavior::Index),
+        );
 
         let addr = serializer
             .serialize_newtype_variant("MyEnum", 100, "Value1", &200)
@@ -961,6 +950,7 @@ mod compound {
 
     use garnish_data::data::{SimpleData, SimpleNumber};
     use garnish_data::{symbol_value, SimpleRuntimeData};
+    use crate::GarnishSerializationOptions;
 
     use crate::serializer::{GarnishDataSerializer, StructBehavior, VariantNameBehavior};
 
@@ -1098,8 +1088,10 @@ mod compound {
         use serde::ser::SerializeStruct;
 
         let mut data = SimpleRuntimeData::new();
-        let mut serializer = GarnishDataSerializer::new(&mut data);
-        serializer.set_unit_struct_behavior(StructBehavior::IncludeTyping);
+        let mut serializer = GarnishDataSerializer::new_with_options(
+            &mut data,
+            GarnishSerializationOptions::new().struct_typing_behavior(StructBehavior::IncludeTyping),
+        );
 
         let mut serializer = serializer.serialize_tuple_struct("MyStruct", 3).unwrap();
 
@@ -1210,8 +1202,10 @@ mod compound {
         use serde::ser::SerializeTupleStruct;
 
         let mut data = SimpleRuntimeData::new();
-        let mut serializer = GarnishDataSerializer::new(&mut data);
-        serializer.set_unit_struct_behavior(StructBehavior::IncludeTyping);
+        let mut serializer = GarnishDataSerializer::new_with_options(
+            &mut data,
+            GarnishSerializationOptions::new().struct_typing_behavior(StructBehavior::IncludeTyping),
+        );
 
         let mut serializer = serializer.serialize_tuple_struct("MyTuple", 3).unwrap();
 
@@ -1336,8 +1330,10 @@ mod compound {
         use serde::ser::SerializeStructVariant;
 
         let mut data = SimpleRuntimeData::new();
-        let mut serializer = GarnishDataSerializer::new(&mut data);
-        serializer.set_variant_name_behavior(VariantNameBehavior::Short);
+        let mut serializer = GarnishDataSerializer::new_with_options(
+            &mut data,
+            GarnishSerializationOptions::new().variant_name_behavior(VariantNameBehavior::Short),
+        );
 
         let mut serializer = serializer
             .serialize_struct_variant("MyEnum", 100, "MyStruct", 3)
@@ -1418,8 +1414,10 @@ mod compound {
         use serde::ser::SerializeStructVariant;
 
         let mut data = SimpleRuntimeData::new();
-        let mut serializer = GarnishDataSerializer::new(&mut data);
-        serializer.set_variant_name_behavior(VariantNameBehavior::Index);
+        let mut serializer = GarnishDataSerializer::new_with_options(
+            &mut data,
+            GarnishSerializationOptions::new().variant_name_behavior(VariantNameBehavior::Index),
+        );
 
         let mut serializer = serializer
             .serialize_struct_variant("MyEnum", 100, "MyStruct", 3)
@@ -1546,8 +1544,10 @@ mod compound {
         use serde::ser::SerializeTupleVariant;
 
         let mut data = SimpleRuntimeData::new();
-        let mut serializer = GarnishDataSerializer::new(&mut data);
-        serializer.set_variant_name_behavior(VariantNameBehavior::Short);
+        let mut serializer = GarnishDataSerializer::new_with_options(
+            &mut data,
+            GarnishSerializationOptions::new().variant_name_behavior(VariantNameBehavior::Short),
+        );
 
         let mut serializer = serializer
             .serialize_tuple_variant("MyEnum", 100, "Type1", 3)
@@ -1593,8 +1593,10 @@ mod compound {
         use serde::ser::SerializeTupleVariant;
 
         let mut data = SimpleRuntimeData::new();
-        let mut serializer = GarnishDataSerializer::new(&mut data);
-        serializer.set_variant_name_behavior(VariantNameBehavior::Index);
+        let mut serializer = GarnishDataSerializer::new_with_options(
+            &mut data,
+            GarnishSerializationOptions::new().variant_name_behavior(VariantNameBehavior::Index),
+        );
 
         let mut serializer = serializer
             .serialize_tuple_variant("MyEnum", 100, "Type1", 3)

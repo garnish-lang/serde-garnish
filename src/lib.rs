@@ -54,7 +54,9 @@ mod serialize;
 mod visitor;
 mod error;
 mod traits;
+mod options;
 
+pub use options::*;
 pub use traits::*;
 pub use serializer::*;
 pub use deserializer::GarnishDataDeserializer;
