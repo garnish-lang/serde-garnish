@@ -21,7 +21,7 @@ where
     Data::Byte: From<u8>,
     Data::Byte: Into<u8>,
 {
-    data: &'data Data,
+    data: &'data mut Data,
     value_stack: Vec<Data::Size>,
 }
 
@@ -36,14 +36,15 @@ where
     Data::Byte: From<u8>,
     Data::Byte: Into<u8>,
 {
-    pub fn new(data: &'data Data) -> Self {
+    pub fn new(data: &'data mut Data) -> Self {
+        let v = data.get_current_value().unwrap_or(Data::Size::zero());
         Self {
             data,
-            value_stack: vec![data.get_current_value().unwrap_or(Data::Size::zero())],
+            value_stack: vec![v],
         }
     }
 
-    pub fn new_for_value(data: &'data Data, value_addr: Data::Size) -> Self {
+    pub fn new_for_value(data: &'data mut Data, value_addr: Data::Size) -> Self {
         Self {
             data,
             value_stack: vec![value_addr],
@@ -274,6 +275,27 @@ where
         let (t, a) = self.value()?;
         match t {
             ExpressionDataType::CharList => {
+                let len = self.data.get_char_list_len(a).or_else(wrap_err)?;
+                let mut s = String::with_capacity(len.into());
+                let mut i = Data::Size::zero();
+
+                while i < len {
+                    let c = self
+                        .data
+                        .get_char_list_item(a, Data::size_to_number(i))
+                        .or_else(wrap_err)?;
+                    s.push(c.into());
+                    i += Data::Size::one();
+                }
+
+                visitor.visit_string(s)
+            }
+            // in terms of converting to Rust types, symbols can be treated as Strings if requested
+            ExpressionDataType::Symbol => {
+                // need to create a CharList first
+                // may need Garnish Data trait to have a method for direct to string conversion
+                let a = self.data.add_char_list_from(a).or_else(wrap_err)?;
+
                 let len = self.data.get_char_list_len(a).or_else(wrap_err)?;
                 let mut s = String::with_capacity(len.into());
                 let mut i = Data::Size::zero();
@@ -615,7 +637,13 @@ where
         // so don't need to check length again
         // value addr was set up by next_key_seed
         // just need to deserialize
-        seed.deserialize(&mut *self.de)
+        let r = seed.deserialize(&mut *self.de);
+        // remove value addr
+        self.de.value_stack.pop();
+        // increase index
+        self.i += Data::Size::one();
+
+        r
     }
 }
 
@@ -656,8 +684,8 @@ mod tests {
         SetupF: FnOnce(&mut SimpleRuntimeData) -> Result<usize, DataError>,
         Type: DeserializeOwned + PartialEq + Debug,
     {
-        let v = deserialize::<SetupF, Type>(setup).unwrap();
-        assert_eq!(v, expected_value);
+        let v = deserialize::<SetupF, Type>(setup);
+        assert_eq!(v.unwrap(), expected_value);
     }
 
     fn assert_fails<SetupF, Type>(setup: SetupF, expected_value: Type)
@@ -959,7 +987,7 @@ mod tests {
         expected.insert("two".to_string(), 200);
         expected.insert("three".to_string(), 300);
 
-        assert_fails(
+        assert_deserializes(
             |data| {
                 let sym1 = data.parse_add_symbol("one").unwrap();
                 let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
@@ -992,7 +1020,7 @@ mod tests {
 
     #[test]
     fn deserialize_struct() {
-        assert_fails(
+        assert_deserializes(
             |data| {
                 let sym1 = data.parse_add_symbol("one").unwrap();
                 let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
