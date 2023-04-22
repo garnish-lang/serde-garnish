@@ -19,6 +19,7 @@ From<i8>
 + Into<u64>
 + Into<f32>
 + Into<f64>
++ Into<usize>
 {
 }
 
@@ -43,5 +44,6 @@ impl<T> GarnishNumberConversions for T where
     + Into<u64>
     + Into<f32>
     + Into<f64>
+    + Into<usize>
 {
 }

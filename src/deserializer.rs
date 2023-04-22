@@ -1,15 +1,14 @@
 use std::convert::From;
-use std::ops::Add;
 
-use serde::de::value::StrDeserializer;
 use serde::de::{
     DeserializeSeed, EnumAccess, IntoDeserializer, MapAccess, SeqAccess, VariantAccess, Visitor,
 };
+use serde::de::value::StrDeserializer;
 use serde::Deserializer;
 
 use garnish_traits::{ExpressionDataType, GarnishLangRuntimeData, TypeConstants};
 
-use crate::error::{wrap_err, GarnishSerializationError};
+use crate::error::{GarnishSerializationError, wrap_err};
 use crate::GarnishNumberConversions;
 
 pub struct GarnishDataDeserializer<'data, Data>
@@ -509,8 +508,7 @@ where
     Data::Byte: Into<u8>,
 {
     de: &'a mut GarnishDataDeserializer<'data, Data>,
-    i: Data::Size,
-    len: Data::Size,
+    items: Vec<Data::Size>,
 }
 
 impl<'a, 'data, Data> ListAccessor<'a, 'data, Data>
@@ -527,34 +525,134 @@ where
     pub fn new(
         de: &'a mut GarnishDataDeserializer<'data, Data>,
     ) -> Result<Self, GarnishSerializationError<Data>> {
-        let (_t, a) = de.value()?;
-        let len = de.data.get_list_len(a).or_else(wrap_err)?;
-        Ok(Self {
-            de,
-            i: Data::Size::zero(),
-            len,
-        })
+        Self::new_with_max(de, usize::MAX)
     }
 
     pub fn new_with_max(
         de: &'a mut GarnishDataDeserializer<'data, Data>,
         max: usize,
     ) -> Result<Self, GarnishSerializationError<Data>> {
-        let (_t, a) = de.value()?;
-        let len = de.data.get_list_len(a).or_else(wrap_err)?;
-        if len.into() > max {
+        let (t, a) = de.value()?;
+        let items = match t {
+            ExpressionDataType::List => {
+                let len = de.data.get_list_len(a).or_else(wrap_err)?;
+                let mut i = Data::Size::zero();
+                let mut items = vec![];
+                while i < len {
+                    let list_item = de
+                        .data
+                        .get_list_item(a, Data::size_to_number(i))
+                        .or_else(wrap_err)?;
+                    items.push(list_item);
+                    i += Data::Size::one();
+                }
+
+                items
+            }
+            ExpressionDataType::Concatenation => {
+                let mut items = vec![];
+                let mut cat_stack = vec![a];
+                while !cat_stack.is_empty() {
+                    let current = match cat_stack.pop() {
+                        Some(v) => v,
+                        None => unreachable!("Empty stack when converting a concatenation."),
+                    };
+
+                    match de.data.get_data_type(current).or_else(wrap_err)? {
+                        ExpressionDataType::Concatenation => {
+                            let (left, right) =
+                                de.data.get_concatenation(current).or_else(wrap_err)?;
+                            cat_stack.push(right);
+                            cat_stack.push(left);
+                        }
+                        _ => items.push(current),
+                    }
+                }
+
+                items
+            }
+            ExpressionDataType::Slice => {
+                let (list_ref, range_ref) = de.data.get_slice(a).or_else(wrap_err)?;
+                let list_type = de.data.get_data_type(list_ref).or_else(wrap_err)?;
+
+                let (start_ref, end_ref) = de.data.get_range(range_ref).or_else(wrap_err)?;
+                let (start, end): (usize, usize) = (
+                    de.data.get_number(start_ref).or_else(wrap_err)?.into(),
+                    de.data.get_number(end_ref).or_else(wrap_err)?.into()
+                );
+
+                let items = match list_type {
+                    ExpressionDataType::List => {
+                        let len = de.data.get_list_len(list_ref).or_else(wrap_err)?;
+                        let mut i = Data::Size::zero();
+                        let mut items = vec![];
+                        while i < len {
+                            let list_item = de
+                                .data
+                                .get_list_item(list_ref, Data::size_to_number(i))
+                                .or_else(wrap_err)?;
+                            items.push(list_item);
+                            i += Data::Size::one();
+                        }
+
+                        items
+                    }
+                    ExpressionDataType::Concatenation => {
+                        let mut items = vec![];
+                        let mut cat_stack = vec![list_ref];
+                        while !cat_stack.is_empty() {
+                            let current = match cat_stack.pop() {
+                                Some(v) => v,
+                                None => unreachable!("Empty stack when converting a concatenation."),
+                            };
+
+                            match de.data.get_data_type(current).or_else(wrap_err)? {
+                                ExpressionDataType::Concatenation => {
+                                    let (left, right) =
+                                        de.data.get_concatenation(current).or_else(wrap_err)?;
+                                    cat_stack.push(right);
+                                    cat_stack.push(left);
+                                }
+                                _ => items.push(current),
+                            }
+                        }
+
+                        items
+                    }
+                    t => Err(GarnishSerializationError::from(
+                        format!("{:?} Slice cannot be converted to sequence.", t).as_str(),
+                    ))?,
+                };
+
+                if end <= start {
+                    vec![]
+                } else {
+                    // Ranges are stored in garnish data as inclusive on both ends
+                    // adding 1 to the dif of end and start will include both
+                    let count = end - start + 1;
+                    items.iter().skip(start).take(count).map(|i| *i).collect::<Vec<Data::Size>>()
+                }
+            }
+            _ => Err(GarnishSerializationError::from(
+                format!("{:?} cannot be converted to sequence.", t).as_str(),
+            ))?,
+        };
+
+        if items.len() > max {
             return Err(GarnishSerializationError::from(
                 format!(
                     "Cannot deserialize list like value. Expected maximum of {} items, found {}",
-                    max, len
+                    max,
+                    items.len()
                 )
                 .as_str(),
             ));
         }
+
         Ok(Self {
             de,
-            i: Data::Size::zero(),
-            len,
+            // reverse so items can be popped in order
+            items: items.into_iter().rev().collect(),
         })
     }
 }
@@ -576,25 +674,17 @@ where
     where
         T: DeserializeSeed<'data>,
     {
-        match self.i < self.len {
-            true => {
-                let (_t, a) = self.de.value()?;
-                let i = self
-                    .de
-                    .data
-                    .get_list_item(a, Data::size_to_number(self.i))
-                    .or_else(wrap_err)?;
-                self.de.value_stack.push(i);
-                self.i = self.i.add(Data::Size::one());
+        if let Some(item) = self.items.pop() {
+            self.de.value_stack.push(item);
 
-                let r = seed.deserialize(&mut *self.de).map(Some);
+            let r = seed.deserialize(&mut *self.de).map(Some);
 
-                // done with list item
-                self.de.value_stack.pop();
+            // done with list item
+            self.de.value_stack.pop();
 
-                r
-            }
-            false => Ok(None),
+            r
+        } else {
+            Ok(None)
         }
     }
 }
@@ -616,28 +706,21 @@ where
     where
         K: DeserializeSeed<'data>,
     {
-        match self.i < self.len {
-            true => {
-                let (_t, a) = self.de.value()?;
-                let i = self
-                    .de
-                    .data
-                    .get_list_item(a, Data::size_to_number(self.i))
-                    .or_else(wrap_err)?;
-                let (key, value) = self.de.data.get_pair(i).or_else(wrap_err)?;
-                self.de.value_stack.push(key);
+        if let Some(item) = self.items.pop() {
+            let (key, value) = self.de.data.get_pair(item).or_else(wrap_err)?;
+            self.de.value_stack.push(key);
 
-                let r = seed.deserialize(&mut *self.de).map(Some);
+            let r = seed.deserialize(&mut *self.de).map(Some);
 
-                // done with key
-                self.de.value_stack.pop();
+            // done with key
+            self.de.value_stack.pop();
 
-                // set up value for next_value_seed
-                self.de.value_stack.push(value);
+            // set up value for next_value_seed
+            self.de.value_stack.push(value);
 
-                r
-            }
-            false => Ok(None),
+            r
+        } else {
+            Ok(None)
         }
     }
 
@@ -652,8 +735,6 @@ where
         let r = seed.deserialize(&mut *self.de);
         // remove value addr
         self.de.value_stack.pop();
-        // increase index
-        self.i += Data::Size::one();
 
         r
     }
@@ -808,11 +889,11 @@ mod tests {
     use std::fmt::{Debug, Formatter};
     use std::marker::PhantomData;
 
-    use serde::de::{DeserializeOwned, Error, Visitor};
     use serde::{Deserialize, Deserializer};
+    use serde::de::{DeserializeOwned, Error, Visitor};
 
-    use garnish_data::data::SimpleNumber;
     use garnish_data::{DataError, SimpleRuntimeData};
+    use garnish_data::data::SimpleNumber;
     use garnish_traits::GarnishLangRuntimeData;
 
     use crate::deserializer::GarnishDataDeserializer;
@@ -1030,6 +1111,65 @@ mod tests {
                 data.end_list()
             },
             vec![100, 200, 300],
+        );
+    }
+
+    #[test]
+    fn deserialize_seq_from_concatenation() {
+        assert_deserializes(
+            |data| {
+                let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
+                let num2 = data.add_number(SimpleNumber::Integer(200)).unwrap();
+                let num3 = data.add_number(SimpleNumber::Integer(300)).unwrap();
+
+                let con1 = data.add_concatenation(num1, num2).unwrap();
+                data.add_concatenation(con1, num3)
+            },
+            vec![100, 200, 300],
+        );
+    }
+
+    #[test]
+    fn deserialize_seq_from_concatenation_slice() {
+        assert_deserializes(
+            |data| {
+                let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
+                let num2 = data.add_number(SimpleNumber::Integer(200)).unwrap();
+                let num3 = data.add_number(SimpleNumber::Integer(300)).unwrap();
+
+                let con1 = data.add_concatenation(num1, num2).unwrap();
+                let con2 = data.add_concatenation(con1, num3).unwrap();
+
+                let start = data.add_number(SimpleNumber::Integer(1)).unwrap();
+                let end = data.add_number(SimpleNumber::Integer(2)).unwrap();
+                let range = data.add_range(start, end).unwrap();
+
+                data.add_slice(con2, range)
+            },
+            vec![200, 300],
+        );
+    }
+
+    #[test]
+    fn deserialize_seq_from_list_slice() {
+        assert_deserializes(
+            |data| {
+                let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
+                let num2 = data.add_number(SimpleNumber::Integer(200)).unwrap();
+                let num3 = data.add_number(SimpleNumber::Integer(300)).unwrap();
+                data.start_list(3).unwrap();
+                data.add_to_list(num1, false).unwrap();
+                data.add_to_list(num2, false).unwrap();
+                data.add_to_list(num3, false).unwrap();
+                let list = data.end_list().unwrap();
+
+                let start = data.add_number(SimpleNumber::Integer(1)).unwrap();
+                let end = data.add_number(SimpleNumber::Integer(2)).unwrap();
+                let range = data.add_range(start, end).unwrap();
+
+                data.add_slice(list, range)
+            },
+            vec![200, 300],
         );
     }
 
