@@ -40,7 +40,7 @@
 /// | 5..10             | Range             | ?                                         |
 /// | 5 <> 10           | Concatenation     | Vec<T>, String, Map, Struct, Tuple        |
 /// | list ~ 1..3       | Slice             | Vec<T>, String, Map, Struct, Tuple        |
-/// | 10, 20, 30        | List              | Vec<T>, String, Map, Struct, Tuple        |
+/// | 10, 20, 30        | List              | Vec<T>, Map, Struct, Tuple                |
 /// | { 5 + 5 }         | Expression        | ?                                         |
 /// | external_value    | External          | ?                                         |
 /// | custom_type       | Custom            | ?                                         |

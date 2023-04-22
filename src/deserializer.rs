@@ -1,14 +1,14 @@
 use std::convert::From;
 
+use serde::de::value::StrDeserializer;
 use serde::de::{
     DeserializeSeed, EnumAccess, IntoDeserializer, MapAccess, SeqAccess, VariantAccess, Visitor,
 };
-use serde::de::value::StrDeserializer;
 use serde::Deserializer;
 
 use garnish_traits::{ExpressionDataType, GarnishLangRuntimeData, TypeConstants};
 
-use crate::error::{GarnishSerializationError, wrap_err};
+use crate::error::{wrap_err, GarnishSerializationError};
 use crate::GarnishNumberConversions;
 
 pub struct GarnishDataDeserializer<'data, Data>
@@ -534,43 +534,8 @@ where
     ) -> Result<Self, GarnishSerializationError<Data>> {
         let (t, a) = de.value()?;
         let items = match t {
-            ExpressionDataType::List => {
-                let len = de.data.get_list_len(a).or_else(wrap_err)?;
-                let mut i = Data::Size::zero();
-                let mut items = vec![];
-                while i < len {
-                    let list_item = de
-                        .data
-                        .get_list_item(a, Data::size_to_number(i))
-                        .or_else(wrap_err)?;
-                    items.push(list_item);
-                    i += Data::Size::one();
-                }
-
-                items
-            }
-            ExpressionDataType::Concatenation => {
-                let mut items = vec![];
-                let mut cat_stack = vec![a];
-                while !cat_stack.is_empty() {
-                    let current = match cat_stack.pop() {
-                        Some(v) => v,
-                        None => unreachable!("Empty stack when converting a concatenation."),
-                    };
-
-                    match de.data.get_data_type(current).or_else(wrap_err)? {
-                        ExpressionDataType::Concatenation => {
-                            let (left, right) =
-                                de.data.get_concatenation(current).or_else(wrap_err)?;
-                            cat_stack.push(right);
-                            cat_stack.push(left);
-                        }
-                        _ => items.push(current),
-                    }
-                }
-
-                items
-            }
+            ExpressionDataType::List => gather_list_items(a, de.data)?,
+            ExpressionDataType::Concatenation => gather_concat_items(a, de.data)?,
             ExpressionDataType::Slice => {
                 let (list_ref, range_ref) = de.data.get_slice(a).or_else(wrap_err)?;
                 let list_type = de.data.get_data_type(list_ref).or_else(wrap_err)?;
@@ -578,47 +543,12 @@ where
                 let (start_ref, end_ref) = de.data.get_range(range_ref).or_else(wrap_err)?;
                 let (start, end): (usize, usize) = (
                     de.data.get_number(start_ref).or_else(wrap_err)?.into(),
-                    de.data.get_number(end_ref).or_else(wrap_err)?.into()
+                    de.data.get_number(end_ref).or_else(wrap_err)?.into(),
                 );
 
                 let items = match list_type {
-                    ExpressionDataType::List => {
-                        let len = de.data.get_list_len(list_ref).or_else(wrap_err)?;
-                        let mut i = Data::Size::zero();
-                        let mut items = vec![];
-                        while i < len {
-                            let list_item = de
-                                .data
-                                .get_list_item(list_ref, Data::size_to_number(i))
-                                .or_else(wrap_err)?;
-                            items.push(list_item);
-                            i += Data::Size::one();
-                        }
-
-                        items
-                    }
-                    ExpressionDataType::Concatenation => {
-                        let mut items = vec![];
-                        let mut cat_stack = vec![list_ref];
-                        while !cat_stack.is_empty() {
-                            let current = match cat_stack.pop() {
-                                Some(v) => v,
-                                None => unreachable!("Empty stack when converting a concatenation."),
-                            };
-
-                            match de.data.get_data_type(current).or_else(wrap_err)? {
-                                ExpressionDataType::Concatenation => {
-                                    let (left, right) =
-                                        de.data.get_concatenation(current).or_else(wrap_err)?;
-                                    cat_stack.push(right);
-                                    cat_stack.push(left);
-                                }
-                                _ => items.push(current),
-                            }
-                        }
-
-                        items
-                    }
+                    ExpressionDataType::List => gather_list_items(list_ref, de.data)?,
+                    ExpressionDataType::Concatenation => gather_concat_items(list_ref, de.data)?,
                     t => Err(GarnishSerializationError::from(
                         format!("{:?} Slice cannot be converted to sequence.", t).as_str(),
                     ))?,
@@ -630,7 +560,12 @@ where
                     // Ranges are stored in garnish data as inclusive on both ends
                     // adding 1 to the dif of end and start will include both
                     let count = end - start + 1;
-                    items.iter().skip(start).take(count).map(|i| *i).collect::<Vec<Data::Size>>()
+                    items
+                        .iter()
+                        .skip(start)
+                        .take(count)
+                        .map(|i| *i)
+                        .collect::<Vec<Data::Size>>()
                 }
             }
             _ => Err(GarnishSerializationError::from(
@@ -655,6 +590,69 @@ where
             items: items.into_iter().rev().collect(),
         })
     }
+}
+
+fn gather_concat_items<Data: GarnishLangRuntimeData>(
+    concat_ref: Data::Size,
+    data: &Data,
+) -> Result<Vec<Data::Size>, GarnishSerializationError<Data>>
+where
+    Data: GarnishLangRuntimeData,
+    Data::Number: GarnishNumberConversions,
+    Data::Size: From<usize>,
+    Data::Size: Into<usize>,
+    Data::Char: From<char>,
+    Data::Char: Into<char>,
+    Data::Byte: From<u8>,
+    Data::Byte: Into<u8>,
+{
+    let mut items = vec![];
+    let mut cat_stack = vec![concat_ref];
+    while !cat_stack.is_empty() {
+        let current = match cat_stack.pop() {
+            Some(v) => v,
+            None => unreachable!("Empty stack when converting a concatenation."),
+        };
+
+        match data.get_data_type(current).or_else(wrap_err)? {
+            ExpressionDataType::Concatenation => {
+                let (left, right) = data.get_concatenation(current).or_else(wrap_err)?;
+                cat_stack.push(right);
+                cat_stack.push(left);
+            }
+            _ => items.push(current),
+        }
+    }
+
+    Ok(items)
+}
+
+fn gather_list_items<Data: GarnishLangRuntimeData>(
+    list_ref: Data::Size,
+    data: &Data,
+) -> Result<Vec<Data::Size>, GarnishSerializationError<Data>>
+where
+    Data: GarnishLangRuntimeData,
+    Data::Number: GarnishNumberConversions,
+    Data::Size: From<usize>,
+    Data::Size: Into<usize>,
+    Data::Char: From<char>,
+    Data::Char: Into<char>,
+    Data::Byte: From<u8>,
+    Data::Byte: Into<u8>,
+{
+    let len = data.get_list_len(list_ref).or_else(wrap_err)?;
+    let mut i = Data::Size::zero();
+    let mut items = vec![];
+    while i < len {
+        let list_item = data
+            .get_list_item(list_ref, Data::size_to_number(i))
+            .or_else(wrap_err)?;
+        items.push(list_item);
+        i += Data::Size::one();
+    }
+
+    Ok(items)
 }
 
 impl<'a, 'data, Data> SeqAccess<'data> for ListAccessor<'a, 'data, Data>
@@ -889,11 +887,11 @@ mod tests {
     use std::fmt::{Debug, Formatter};
     use std::marker::PhantomData;
 
-    use serde::{Deserialize, Deserializer};
     use serde::de::{DeserializeOwned, Error, Visitor};
+    use serde::{Deserialize, Deserializer};
 
-    use garnish_data::{DataError, SimpleRuntimeData};
     use garnish_data::data::SimpleNumber;
+    use garnish_data::{DataError, SimpleRuntimeData};
     use garnish_traits::GarnishLangRuntimeData;
 
     use crate::deserializer::GarnishDataDeserializer;
