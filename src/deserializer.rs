@@ -441,13 +441,7 @@ where
     where
         V: Visitor<'data>,
     {
-        let (t, _a) = self.value()?;
-        match t {
-            ExpressionDataType::List => visitor.visit_map(ListAccessor::new(self)?),
-            _ => Err(GarnishSerializationError::from(
-                format!("Expected Unit, found {:?}", t).as_str(),
-            )),
-        }
+        visitor.visit_map(ListAccessor::new(self)?)
     }
 
     fn deserialize_struct<V>(
@@ -459,13 +453,7 @@ where
     where
         V: Visitor<'data>,
     {
-        let (t, _a) = self.value()?;
-        match t {
-            ExpressionDataType::List => visitor.visit_map(ListAccessor::new(self)?),
-            _ => Err(GarnishSerializationError::from(
-                format!("Expected Unit, found {:?}", t).as_str(),
-            )),
-        }
+        visitor.visit_map(ListAccessor::new(self)?)
     }
 
     fn deserialize_enum<V>(
@@ -919,7 +907,10 @@ mod tests {
         Type: DeserializeOwned + PartialEq + Debug,
     {
         let v = deserialize::<SetupF, Type>(setup);
-        assert_eq!(v.unwrap(), expected_value);
+        match v {
+            Ok(v) => assert_eq!(v, expected_value),
+            Err(e) => assert!(false, "{}", format!("{:?} - {:?}", e.error(), e.message())),
+        }
     }
 
     fn assert_fails<SetupF, Type>(setup: SetupF)
@@ -1298,6 +1289,115 @@ mod tests {
         );
     }
 
+    #[test]
+    fn deserialize_map_from_list_slice() {
+        let mut expected = HashMap::new();
+        expected.insert("two".to_string(), 200);
+        expected.insert("three".to_string(), 300);
+        expected.insert("four".to_string(), 400);
+
+        assert_deserializes(
+            |data| {
+                let sym1 = data.parse_add_symbol("one").unwrap();
+                let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
+                let pair1 = data.add_pair((sym1, num1)).unwrap();
+
+                let sym1 = data.parse_add_symbol("two").unwrap();
+                let num1 = data.add_number(SimpleNumber::Integer(200)).unwrap();
+                let pair2 = data.add_pair((sym1, num1)).unwrap();
+
+                let sym1 = data.parse_add_symbol("three").unwrap();
+                let num1 = data.add_number(SimpleNumber::Integer(300)).unwrap();
+                let pair3 = data.add_pair((sym1, num1)).unwrap();
+
+                let sym1 = data.parse_add_symbol("four").unwrap();
+                let num1 = data.add_number(SimpleNumber::Integer(400)).unwrap();
+                let pair4 = data.add_pair((sym1, num1)).unwrap();
+
+                data.start_list(3).unwrap();
+                data.add_to_list(pair1, true).unwrap();
+                data.add_to_list(pair2, true).unwrap();
+                data.add_to_list(pair3, true).unwrap();
+                data.add_to_list(pair4, true).unwrap();
+                let list = data.end_list().unwrap();
+
+                let start = data.add_number(SimpleNumber::Integer(1)).unwrap();
+                let end = data.add_number(SimpleNumber::Integer(3)).unwrap();
+                let range = data.add_range(start, end).unwrap();
+
+                data.add_slice(list, range)
+            },
+            expected,
+        );
+    }
+
+    #[test]
+    fn deserialize_map_from_concatenation() {
+        let mut expected = HashMap::new();
+        expected.insert("two".to_string(), 200);
+        expected.insert("three".to_string(), 300);
+        expected.insert("four".to_string(), 400);
+
+        assert_deserializes(
+            |data| {
+                let sym1 = data.parse_add_symbol("one").unwrap();
+                let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
+                let pair1 = data.add_pair((sym1, num1)).unwrap();
+
+                let sym1 = data.parse_add_symbol("two").unwrap();
+                let num1 = data.add_number(SimpleNumber::Integer(200)).unwrap();
+                let pair2 = data.add_pair((sym1, num1)).unwrap();
+
+                let sym1 = data.parse_add_symbol("three").unwrap();
+                let num1 = data.add_number(SimpleNumber::Integer(300)).unwrap();
+                let pair3 = data.add_pair((sym1, num1)).unwrap();
+
+                let sym1 = data.parse_add_symbol("four").unwrap();
+                let num1 = data.add_number(SimpleNumber::Integer(400)).unwrap();
+                let pair4 = data.add_pair((sym1, num1)).unwrap();
+
+                let cat1 = data.add_concatenation(pair1, pair2).unwrap();
+                let cat2 = data.add_concatenation(cat1, pair3).unwrap();
+                let cat3 = data.add_concatenation(cat2, pair4).unwrap();
+
+                let start = data.add_number(SimpleNumber::Integer(1)).unwrap();
+                let end = data.add_number(SimpleNumber::Integer(3)).unwrap();
+                let range = data.add_range(start, end).unwrap();
+
+                data.add_slice(cat3, range)
+            },
+            expected,
+        );
+    }
+
+    #[test]
+    fn deserialize_map_from_concatenation_slice() {
+        let mut expected = HashMap::new();
+        expected.insert("one".to_string(), 100);
+        expected.insert("two".to_string(), 200);
+        expected.insert("three".to_string(), 300);
+
+        assert_deserializes(
+            |data| {
+                let sym1 = data.parse_add_symbol("one").unwrap();
+                let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
+                let pair1 = data.add_pair((sym1, num1)).unwrap();
+
+                let sym1 = data.parse_add_symbol("two").unwrap();
+                let num1 = data.add_number(SimpleNumber::Integer(200)).unwrap();
+                let pair2 = data.add_pair((sym1, num1)).unwrap();
+
+                let sym1 = data.parse_add_symbol("three").unwrap();
+                let num1 = data.add_number(SimpleNumber::Integer(300)).unwrap();
+                let pair3 = data.add_pair((sym1, num1)).unwrap();
+
+                let cat1 = data.add_concatenation(pair1, pair2).unwrap();
+                data.add_concatenation(cat1, pair3)
+            },
+            expected,
+        );
+    }
+
     #[derive(Debug, PartialEq, Deserialize)]
     struct SomeStruct {
         one: i32,
@@ -1325,10 +1425,118 @@ mod tests {
         data.end_list()
     }
 
+    fn add_some_struct_as_concat(data: &mut SimpleRuntimeData) -> Result<usize, DataError> {
+        let sym1 = data.parse_add_symbol("one").unwrap();
+        let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
+        let pair1 = data.add_pair((sym1, num1)).unwrap();
+
+        let sym1 = data.parse_add_symbol("two").unwrap();
+        let num1 = data.add_number(SimpleNumber::Integer(200)).unwrap();
+        let pair2 = data.add_pair((sym1, num1)).unwrap();
+
+        let sym1 = data.parse_add_symbol("three").unwrap();
+        let num1 = data.add_number(SimpleNumber::Integer(300)).unwrap();
+        let pair3 = data.add_pair((sym1, num1)).unwrap();
+
+        let cat1 = data.add_concatenation(pair1, pair2).unwrap();
+        data.add_concatenation(cat1, pair3)
+    }
+
     #[test]
     fn deserialize_struct() {
         assert_deserializes(
             add_some_struct,
+            SomeStruct {
+                one: 100,
+                two: 200,
+                three: 300,
+            },
+        );
+    }
+
+    #[test]
+    fn deserialize_struct_from_list_slice() {
+        assert_deserializes(
+            |data| {
+                let sym1 = data.parse_add_symbol("zero").unwrap();
+                let num1 = data.add_number(SimpleNumber::Integer(0)).unwrap();
+                let pair1 = data.add_pair((sym1, num1)).unwrap();
+
+                let sym1 = data.parse_add_symbol("one").unwrap();
+                let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
+                let pair2 = data.add_pair((sym1, num1)).unwrap();
+
+                let sym1 = data.parse_add_symbol("two").unwrap();
+                let num1 = data.add_number(SimpleNumber::Integer(200)).unwrap();
+                let pair3 = data.add_pair((sym1, num1)).unwrap();
+
+                let sym1 = data.parse_add_symbol("three").unwrap();
+                let num1 = data.add_number(SimpleNumber::Integer(300)).unwrap();
+                let pair4 = data.add_pair((sym1, num1)).unwrap();
+
+                data.start_list(3).unwrap();
+                data.add_to_list(pair1, true).unwrap();
+                data.add_to_list(pair2, true).unwrap();
+                data.add_to_list(pair3, true).unwrap();
+                data.add_to_list(pair4, true).unwrap();
+                let list = data.end_list().unwrap();
+
+                let start = data.add_number(SimpleNumber::Integer(1)).unwrap();
+                let end = data.add_number(SimpleNumber::Integer(3)).unwrap();
+                let range = data.add_range(start, end).unwrap();
+
+                data.add_slice(list, range)
+            },
+            SomeStruct {
+                one: 100,
+                two: 200,
+                three: 300,
+            },
+        );
+    }
+
+    #[test]
+    fn deserialize_struct_from_concatenation() {
+        assert_deserializes(
+            add_some_struct_as_concat,
+            SomeStruct {
+                one: 100,
+                two: 200,
+                three: 300,
+            },
+        );
+    }
+
+    #[test]
+    fn deserialize_struct_from_concatenation_slice() {
+        assert_deserializes(
+            |data| {
+                let sym1 = data.parse_add_symbol("zero").unwrap();
+                let num1 = data.add_number(SimpleNumber::Integer(0)).unwrap();
+                let pair1 = data.add_pair((sym1, num1)).unwrap();
+
+                let sym1 = data.parse_add_symbol("one").unwrap();
+                let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
+                let pair2 = data.add_pair((sym1, num1)).unwrap();
+
+                let sym1 = data.parse_add_symbol("two").unwrap();
+                let num1 = data.add_number(SimpleNumber::Integer(200)).unwrap();
+                let pair3 = data.add_pair((sym1, num1)).unwrap();
+
+                let sym1 = data.parse_add_symbol("three").unwrap();
+                let num1 = data.add_number(SimpleNumber::Integer(300)).unwrap();
+                let pair4 = data.add_pair((sym1, num1)).unwrap();
+
+                let cat1 = data.add_concatenation(pair1, pair2).unwrap();
+                let cat2 = data.add_concatenation(cat1, pair3).unwrap();
+                let cat3 = data.add_concatenation(cat2, pair4).unwrap();
+
+                let start = data.add_number(SimpleNumber::Integer(1)).unwrap();
+                let end = data.add_number(SimpleNumber::Integer(3)).unwrap();
+                let range = data.add_range(start, end).unwrap();
+
+                data.add_slice(cat3, range)
+            },
             SomeStruct {
                 one: 100,
                 two: 200,
