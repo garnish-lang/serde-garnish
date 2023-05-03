@@ -316,14 +316,14 @@ where
                 visitor.visit_string(s)
             }
             // in terms of converting to Rust types, symbols can be treated as Strings if requested
-            ExpressionDataType::Symbol => {
+            ExpressionDataType::Symbol | ExpressionDataType::Concatenation | ExpressionDataType::Slice => {
                 // need to create a CharList first
                 // may need Garnish Data trait to have a method for direct to string conversion
                 let a = self.data.add_char_list_from(a).or_else(wrap_err)?;
                 visitor.visit_string(self.create_symbol_string(a)?)
             }
             t => Err(GarnishSerializationError::from(
-                format!("Expected CharList, found {:?}", t).as_str(),
+                format!("Expected CharList, Symbol, Concatenation or Slice. Found {:?}", t).as_str(),
             )),
         }
     }
@@ -999,6 +999,36 @@ mod tests {
         assert_deserializes(
             |data| data.parse_add_char_list("abcd"),
             String::from("abcd"),
+        );
+    }
+
+    #[test]
+    fn deserialize_string_from_concatenation() {
+        assert_deserializes(
+            |data| {
+                let s1 = data.parse_add_char_list("abcd").unwrap();
+                let s2 = data.parse_add_char_list("efgh").unwrap();
+                let s3 = data.parse_add_char_list("ijkl").unwrap();
+
+                let cat1 = data.add_concatenation(s1, s2).unwrap();
+                data.add_concatenation(cat1, s3)
+            },
+            String::from("abcdefghijkl"),
+        );
+    }
+
+    #[test]
+    fn deserialize_string_from_slice() {
+        assert_deserializes(
+            |data| {
+                let s = data.parse_add_char_list("abcd").unwrap();
+                let start = data.add_number(SimpleNumber::Integer(1)).unwrap();
+                let end = data.add_number(SimpleNumber::Integer(2)).unwrap();
+                let range = data.add_range(start, end).unwrap();
+
+                data.add_slice(s, range)
+            },
+            String::from("bc"),
         );
     }
 
