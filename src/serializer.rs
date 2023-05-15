@@ -18,7 +18,6 @@ where
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Char: From<char>,
-    Data::Char: Into<char>,
     Data::Byte: From<u8>,
 {
     data: &'a mut Data,
@@ -34,7 +33,6 @@ where
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Char: From<char>,
-    Data::Char: Into<char>,
     Data::Byte: From<u8>,
 {
     pub fn new(data: &'a mut Data) -> Self {
