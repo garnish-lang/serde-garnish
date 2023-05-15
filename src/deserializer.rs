@@ -310,14 +310,20 @@ where
                 visitor.visit_string(s)
             }
             // in terms of converting to Rust types, symbols can be treated as Strings if requested
-            ExpressionDataType::Symbol | ExpressionDataType::Concatenation | ExpressionDataType::Slice => {
+            ExpressionDataType::Symbol
+            | ExpressionDataType::Concatenation
+            | ExpressionDataType::Slice => {
                 // need to create a CharList first
                 // may need Garnish Data trait to have a method for direct to string conversion
                 let a = self.data.add_char_list_from(a).or_else(wrap_err)?;
                 visitor.visit_string(self.create_symbol_string(a)?)
             }
             t => Err(GarnishSerializationError::from(
-                format!("Expected CharList, Symbol, Concatenation or Slice. Found {:?}", t).as_str(),
+                format!(
+                    "Expected CharList, Symbol, Concatenation or Slice. Found {:?}",
+                    t
+                )
+                .as_str(),
             )),
         }
     }
@@ -550,9 +556,8 @@ where
                         .collect::<Vec<Data::Size>>()
                 }
             }
-            _ => Err(GarnishSerializationError::from(
-                format!("{:?} cannot be converted to sequence.", t).as_str(),
-            ))?,
+            // Imply list of length 1 for all other types
+            _ => vec![a],
         };
 
         if items.len() > max {
@@ -1124,6 +1129,14 @@ mod tests {
                 data.end_list()
             },
             vec![100, 200, 300],
+        );
+    }
+
+    #[test]
+    fn deserialize_seq_of_1_from_non_list() {
+        assert_deserializes(
+            |data| data.add_number(SimpleNumber::Integer(100)),
+            vec![100],
         );
     }
 
