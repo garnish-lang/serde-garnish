@@ -15,11 +15,8 @@ pub struct GarnishDataDeserializer<'data, Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
-    Data::Size: From<usize>,
     Data::Size: Into<usize>,
-    Data::Char: From<char>,
     Data::Char: Into<char>,
-    Data::Byte: From<u8>,
     Data::Byte: Into<u8>,
 {
     data: &'data mut Data,
@@ -30,11 +27,8 @@ impl<'data, Data> GarnishDataDeserializer<'data, Data>
 where
     Data: GarnishLangRuntimeData,
     Data::Number: GarnishNumberConversions,
-    Data::Size: From<usize>,
     Data::Size: Into<usize>,
-    Data::Char: From<char>,
     Data::Char: Into<char>,
-    Data::Byte: From<u8>,
     Data::Byte: Into<u8>,
 {
     pub fn new(data: &'data mut Data) -> Self {
