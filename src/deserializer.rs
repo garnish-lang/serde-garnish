@@ -542,7 +542,7 @@ where
                     ))?,
                 };
 
-                if end <= start {
+                if end < start {
                     vec![]
                 } else {
                     // Ranges are stored in garnish data as inclusive on both ends
@@ -798,7 +798,7 @@ where
             }
             ExpressionDataType::Symbol => a,
             _ => Err(GarnishSerializationError::from(
-                format!("Expected List, found {:?}", t).as_str(),
+                format!("Expected List or Symbol for variant, found {:?}", t).as_str(),
             ))?,
         };
 
@@ -1196,6 +1196,29 @@ mod tests {
                 data.add_slice(list, range)
             },
             vec![200, 300],
+        );
+    }
+
+    #[test]
+    fn deserialize_seq_from_list_slice_one_length_range() {
+        assert_deserializes(
+            |data| {
+                let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
+                let num2 = data.add_number(SimpleNumber::Integer(200)).unwrap();
+                let num3 = data.add_number(SimpleNumber::Integer(300)).unwrap();
+                data.start_list(3).unwrap();
+                data.add_to_list(num1, false).unwrap();
+                data.add_to_list(num2, false).unwrap();
+                data.add_to_list(num3, false).unwrap();
+                let list = data.end_list().unwrap();
+
+                let start = data.add_number(SimpleNumber::Integer(1)).unwrap();
+                let end = data.add_number(SimpleNumber::Integer(1)).unwrap();
+                let range = data.add_range(start, end).unwrap();
+
+                data.add_slice(list, range)
+            },
+            vec![200],
         );
     }
 
