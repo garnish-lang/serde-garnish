@@ -10,5 +10,5 @@ log = "0.4"
 serde = { version = "1.0.147", features = ["derive"] }
 garnish_lang_runtime = { path = "../garnish-core/runtime"}
 garnish_lang_compiler = { path = "../garnish-core/compiler"}
-garnish_data = { path = "../garnish-core/data"}
-garnish_traits = { path = "../garnish-core/traits"}
+garnish_lang_simple_data = { path = "../garnish-core/data"}
+garnish_lang_traits = { path = "../garnish-core/traits"}

@@ -6,7 +6,7 @@ use serde::de::{
 };
 use serde::Deserializer;
 
-use garnish_traits::{ExpressionDataType, GarnishLangRuntimeData, TypeConstants};
+use garnish_lang_traits::{ExpressionDataType, GarnishLangRuntimeData, TypeConstants};
 
 use crate::error::{wrap_err, GarnishSerializationError};
 use crate::GarnishNumberConversions;
@@ -877,9 +877,9 @@ mod tests {
     use serde::de::{DeserializeOwned, Error, Visitor};
     use serde::{Deserialize, Deserializer};
 
-    use garnish_data::data::SimpleNumber;
-    use garnish_data::{DataError, SimpleRuntimeData};
-    use garnish_traits::GarnishLangRuntimeData;
+    use garnish_lang_simple_data::data::SimpleNumber;
+    use garnish_lang_simple_data::{DataError, SimpleRuntimeData};
+    use garnish_lang_traits::GarnishLangRuntimeData;
 
     use crate::deserializer::GarnishDataDeserializer;
     use crate::error::GarnishSerializationError;

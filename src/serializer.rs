@@ -4,7 +4,7 @@ use serde::ser::{
 };
 use serde::{Serialize, Serializer};
 
-use garnish_traits::{GarnishLangRuntimeData, TypeConstants};
+use garnish_lang_traits::{GarnishLangRuntimeData, TypeConstants};
 
 use crate::error::{wrap_err, GarnishSerializationError};
 use crate::{
@@ -551,8 +551,8 @@ where
 mod tests {
     use serde::Serializer;
 
-    use garnish_data::data::{SimpleData, SimpleNumber};
-    use garnish_data::{symbol_value, SimpleRuntimeData};
+    use garnish_lang_simple_data::data::{SimpleData, SimpleNumber};
+    use garnish_lang_simple_data::{symbol_value, SimpleRuntimeData};
 
     use crate::serializer::{
         GarnishDataSerializer, OptionalBehavior, StructBehavior, VariantNameBehavior,
@@ -946,8 +946,8 @@ mod tests {
 mod compound {
     use serde::Serializer;
 
-    use garnish_data::data::{SimpleData, SimpleNumber};
-    use garnish_data::{symbol_value, SimpleRuntimeData};
+    use garnish_lang_simple_data::data::{SimpleData, SimpleNumber};
+    use garnish_lang_simple_data::{symbol_value, SimpleRuntimeData};
     use crate::GarnishSerializationOptions;
 
     use crate::serializer::{GarnishDataSerializer, StructBehavior, VariantNameBehavior};

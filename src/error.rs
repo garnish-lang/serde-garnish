@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 
-use garnish_traits::GarnishLangRuntimeData;
+use garnish_lang_traits::GarnishLangRuntimeData;
 
 use crate::traits::GarnishNumberConversions;
 
