@@ -4,7 +4,7 @@ use serde::ser::{
 };
 use serde::{Serialize, Serializer};
 
-use garnish_lang_traits::{GarnishLangRuntimeData, TypeConstants};
+use garnish_lang_traits::{GarnishData, TypeConstants};
 
 use crate::error::{wrap_err, GarnishSerializationError};
 use crate::{
@@ -14,7 +14,7 @@ use crate::{
 
 pub struct GarnishDataSerializer<'a, Data>
 where
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Char: From<char>,
@@ -29,7 +29,7 @@ where
 
 impl<'a, Data> GarnishDataSerializer<'a, Data>
 where
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Char: From<char>,
@@ -94,7 +94,7 @@ where
 impl<'a, 'b, Data> Serializer for &'b mut GarnishDataSerializer<'a, Data>
 where
     'a: 'b,
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Char: From<char>,
@@ -337,7 +337,7 @@ where
 impl<'a, 'b, Data> SerializeSeq for &'b mut GarnishDataSerializer<'a, Data>
 where
     'a: 'b,
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Char: From<char>,
@@ -363,7 +363,7 @@ where
 impl<'a, 'b, Data> SerializeMap for &'b mut GarnishDataSerializer<'a, Data>
 where
     'a: 'b,
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Char: From<char>,
@@ -408,7 +408,7 @@ where
 impl<'a, 'b, Data> SerializeStruct for &'b mut GarnishDataSerializer<'a, Data>
 where
     'a: 'b,
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Char: From<char>,
@@ -440,7 +440,7 @@ where
 impl<'a, 'b, Data> SerializeStructVariant for &'b mut GarnishDataSerializer<'a, Data>
 where
     'a: 'b,
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Char: From<char>,
@@ -472,7 +472,7 @@ where
 impl<'a, 'b, Data> SerializeTuple for &'b mut GarnishDataSerializer<'a, Data>
 where
     'a: 'b,
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Char: From<char>,
@@ -498,7 +498,7 @@ where
 impl<'a, 'b, Data> SerializeTupleStruct for &'b mut GarnishDataSerializer<'a, Data>
 where
     'a: 'b,
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Char: From<char>,
@@ -524,7 +524,7 @@ where
 impl<'a, 'b, Data> SerializeTupleVariant for &'b mut GarnishDataSerializer<'a, Data>
 where
     'a: 'b,
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Char: From<char>,
@@ -552,7 +552,7 @@ mod tests {
     use serde::Serializer;
 
     use garnish_lang_simple_data::data::{SimpleData, SimpleNumber};
-    use garnish_lang_simple_data::{symbol_value, SimpleRuntimeData};
+    use garnish_lang_simple_data::{symbol_value, SimpleGarnishData};
 
     use crate::serializer::{
         GarnishDataSerializer, OptionalBehavior, StructBehavior, VariantNameBehavior,
@@ -561,7 +561,7 @@ mod tests {
 
     #[test]
     fn serialize_true() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let addr = serializer.serialize_bool(true).unwrap();
@@ -572,7 +572,7 @@ mod tests {
 
     #[test]
     fn serialize_false() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let addr = serializer.serialize_bool(false).unwrap();
@@ -583,7 +583,7 @@ mod tests {
 
     #[test]
     fn serialize_i8() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let addr = serializer.serialize_i8(125).unwrap();
@@ -594,7 +594,7 @@ mod tests {
 
     #[test]
     fn serialize_i16() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let addr = serializer.serialize_i16(125).unwrap();
@@ -605,7 +605,7 @@ mod tests {
 
     #[test]
     fn serialize_i32() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let addr = serializer.serialize_i32(125).unwrap();
@@ -616,7 +616,7 @@ mod tests {
 
     #[test]
     fn serialize_i64() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let addr = serializer.serialize_i64(125).unwrap();
@@ -627,7 +627,7 @@ mod tests {
 
     #[test]
     fn serialize_u8() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let addr = serializer.serialize_u8(125).unwrap();
@@ -638,7 +638,7 @@ mod tests {
 
     #[test]
     fn serialize_u16() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let addr = serializer.serialize_u16(125).unwrap();
@@ -649,7 +649,7 @@ mod tests {
 
     #[test]
     fn serialize_u32() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let addr = serializer.serialize_u32(125).unwrap();
@@ -660,7 +660,7 @@ mod tests {
 
     #[test]
     fn serialize_u64() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let addr = serializer.serialize_u64(125).unwrap();
@@ -671,7 +671,7 @@ mod tests {
 
     #[test]
     fn serialize_f32() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let addr = serializer.serialize_f32(125.0).unwrap();
@@ -682,7 +682,7 @@ mod tests {
 
     #[test]
     fn serialize_f64() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let addr = serializer.serialize_f64(125.0).unwrap();
@@ -693,7 +693,7 @@ mod tests {
 
     #[test]
     fn serialize_char() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let addr = serializer.serialize_char('a').unwrap();
@@ -704,7 +704,7 @@ mod tests {
 
     #[test]
     fn serialize_str() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let addr = serializer.serialize_str("abcd").unwrap();
@@ -715,7 +715,7 @@ mod tests {
 
     #[test]
     fn serialize_byte() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let addr = serializer.serialize_bytes(&[1, 2, 3, 4]).unwrap();
@@ -726,7 +726,7 @@ mod tests {
 
     #[test]
     fn serialize_none_symbol() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new_with_options(
             &mut data,
             GarnishSerializationOptions::new().optional_behavior(OptionalBehavior::UnitSymbol),
@@ -742,7 +742,7 @@ mod tests {
 
     #[test]
     fn serialize_some_as_value_when_unit_symbol() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new_with_options(
             &mut data,
             GarnishSerializationOptions::new().optional_behavior(OptionalBehavior::UnitSymbol),
@@ -758,7 +758,7 @@ mod tests {
 
     #[test]
     fn serialize_none_as_unit() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let addr = serializer.serialize_none().unwrap();
@@ -768,7 +768,7 @@ mod tests {
 
     #[test]
     fn serialize_some_as_value() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let addr = serializer.serialize_some(&10).unwrap();
@@ -781,7 +781,7 @@ mod tests {
 
     #[test]
     fn serialize_unit() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let addr = serializer.serialize_unit().unwrap();
@@ -791,7 +791,7 @@ mod tests {
 
     #[test]
     fn serialize_unit_struct_as_unit() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let addr = serializer.serialize_unit_struct("PhantomData").unwrap();
@@ -801,7 +801,7 @@ mod tests {
 
     #[test]
     fn serialize_unit_struct_as_list() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new_with_options(
             &mut data,
             GarnishSerializationOptions::new().struct_typing_behavior(StructBehavior::IncludeTyping),
@@ -823,7 +823,7 @@ mod tests {
 
     #[test]
     fn serialize_variant_full_name() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let addr = serializer
@@ -838,7 +838,7 @@ mod tests {
 
     #[test]
     fn serialize_variant_short_name() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new_with_options(
             &mut data,
             GarnishSerializationOptions::new().variant_name_behavior(VariantNameBehavior::Short),
@@ -856,7 +856,7 @@ mod tests {
 
     #[test]
     fn serialize_variant_index() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new_with_options(
             &mut data,
             GarnishSerializationOptions::new().variant_name_behavior(VariantNameBehavior::Index),
@@ -874,7 +874,7 @@ mod tests {
 
     #[test]
     fn serialize_new_type_variant_full_name() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let addr = serializer
@@ -895,7 +895,7 @@ mod tests {
 
     #[test]
     fn serialize_new_type_variant_short_name() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new_with_options(
             &mut data,
             GarnishSerializationOptions::new().variant_name_behavior(VariantNameBehavior::Short),
@@ -919,7 +919,7 @@ mod tests {
 
     #[test]
     fn serialize_new_type_variant_index() {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new_with_options(
             &mut data,
             GarnishSerializationOptions::new().variant_name_behavior(VariantNameBehavior::Index),
@@ -947,7 +947,7 @@ mod compound {
     use serde::Serializer;
 
     use garnish_lang_simple_data::data::{SimpleData, SimpleNumber};
-    use garnish_lang_simple_data::{symbol_value, SimpleRuntimeData};
+    use garnish_lang_simple_data::{symbol_value, SimpleGarnishData};
     use crate::GarnishSerializationOptions;
 
     use crate::serializer::{GarnishDataSerializer, StructBehavior, VariantNameBehavior};
@@ -956,7 +956,7 @@ mod compound {
     fn serialize_sequence() {
         use serde::ser::SerializeSeq;
 
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let mut serializer = serializer.serialize_seq(None).unwrap();
@@ -987,7 +987,7 @@ mod compound {
     fn serialize_tuple() {
         use serde::ser::SerializeTuple;
 
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let mut serializer = serializer.serialize_tuple(3).unwrap();
@@ -1018,7 +1018,7 @@ mod compound {
     fn serialize_struct_without_name() {
         use serde::ser::SerializeStruct;
 
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let mut serializer = serializer.serialize_struct("MyTuple", 3).unwrap();
@@ -1085,7 +1085,7 @@ mod compound {
     fn serialize_struct_with_name() {
         use serde::ser::SerializeStruct;
 
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new_with_options(
             &mut data,
             GarnishSerializationOptions::new().struct_typing_behavior(StructBehavior::IncludeTyping),
@@ -1167,7 +1167,7 @@ mod compound {
     fn serialize_tuple_struct_without_name() {
         use serde::ser::SerializeTupleStruct;
 
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let mut serializer = serializer.serialize_tuple_struct("MyTuple", 3).unwrap();
@@ -1199,7 +1199,7 @@ mod compound {
     fn serialize_tuple_struct_with_name() {
         use serde::ser::SerializeTupleStruct;
 
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new_with_options(
             &mut data,
             GarnishSerializationOptions::new().struct_typing_behavior(StructBehavior::IncludeTyping),
@@ -1246,7 +1246,7 @@ mod compound {
     fn serialize_struct_variant_with_full_name() {
         use serde::ser::SerializeStructVariant;
 
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let mut serializer = serializer
@@ -1327,7 +1327,7 @@ mod compound {
     fn serialize_struct_variant_with_short_name() {
         use serde::ser::SerializeStructVariant;
 
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new_with_options(
             &mut data,
             GarnishSerializationOptions::new().variant_name_behavior(VariantNameBehavior::Short),
@@ -1411,7 +1411,7 @@ mod compound {
     fn serialize_struct_variant_with_index_name() {
         use serde::ser::SerializeStructVariant;
 
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new_with_options(
             &mut data,
             GarnishSerializationOptions::new().variant_name_behavior(VariantNameBehavior::Index),
@@ -1495,7 +1495,7 @@ mod compound {
     fn serialize_tuple_variant_with_full_name() {
         use serde::ser::SerializeTupleVariant;
 
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let mut serializer = serializer
@@ -1541,7 +1541,7 @@ mod compound {
     fn serialize_tuple_variant_with_short_name() {
         use serde::ser::SerializeTupleVariant;
 
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new_with_options(
             &mut data,
             GarnishSerializationOptions::new().variant_name_behavior(VariantNameBehavior::Short),
@@ -1590,7 +1590,7 @@ mod compound {
     fn serialize_tuple_variant_with_index_name() {
         use serde::ser::SerializeTupleVariant;
 
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new_with_options(
             &mut data,
             GarnishSerializationOptions::new().variant_name_behavior(VariantNameBehavior::Index),
@@ -1639,7 +1639,7 @@ mod compound {
     fn serialize_map() {
         use serde::ser::SerializeMap;
 
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new(&mut data);
 
         let mut serializer = serializer.serialize_map(None).unwrap();

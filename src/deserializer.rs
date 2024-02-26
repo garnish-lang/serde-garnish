@@ -6,14 +6,14 @@ use serde::de::{
 };
 use serde::Deserializer;
 
-use garnish_lang_traits::{ExpressionDataType, GarnishLangRuntimeData, TypeConstants};
+use garnish_lang_traits::{GarnishDataType, GarnishData, TypeConstants};
 
 use crate::error::{wrap_err, GarnishSerializationError};
 use crate::GarnishNumberConversions;
 
 pub struct GarnishDataDeserializer<'data, Data>
 where
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
     Data::Size: Into<usize>,
     Data::Char: Into<char>,
@@ -25,7 +25,7 @@ where
 
 impl<'data, Data> GarnishDataDeserializer<'data, Data>
 where
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
     Data::Size: Into<usize>,
     Data::Char: Into<char>,
@@ -48,7 +48,7 @@ where
 
     pub fn value(
         &self,
-    ) -> Result<(ExpressionDataType, Data::Size), GarnishSerializationError<Data>> {
+    ) -> Result<(GarnishDataType, Data::Size), GarnishSerializationError<Data>> {
         let a = *self
             .value_stack
             .last()
@@ -90,7 +90,7 @@ where
         visitor: V,
         get_source: GetF,
         visit_func: VisitF,
-        expected_type: ExpressionDataType,
+        expected_type: GarnishDataType,
     ) -> Result<V::Value, GarnishSerializationError<Data>>
     where
         V: Visitor<'de>,
@@ -113,7 +113,7 @@ where
 
 impl<'data, 'a, Data> Deserializer<'data> for &'a mut GarnishDataDeserializer<'data, Data>
 where
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Size: Into<usize>,
@@ -138,8 +138,8 @@ where
         let (t, _a) = self.value()?;
 
         match t {
-            ExpressionDataType::True => visitor.visit_bool(true),
-            ExpressionDataType::False => visitor.visit_bool(false),
+            GarnishDataType::True => visitor.visit_bool(true),
+            GarnishDataType::False => visitor.visit_bool(false),
             t => Err(GarnishSerializationError::from(
                 format!("Expected True or False, found {:?}", t).as_str(),
             )),
@@ -154,7 +154,7 @@ where
             visitor,
             Data::get_number,
             V::visit_i8,
-            ExpressionDataType::Number,
+            GarnishDataType::Number,
         )
     }
 
@@ -166,7 +166,7 @@ where
             visitor,
             Data::get_number,
             V::visit_i16,
-            ExpressionDataType::Number,
+            GarnishDataType::Number,
         )
     }
 
@@ -178,7 +178,7 @@ where
             visitor,
             Data::get_number,
             V::visit_i32,
-            ExpressionDataType::Number,
+            GarnishDataType::Number,
         )
     }
 
@@ -190,7 +190,7 @@ where
             visitor,
             Data::get_number,
             V::visit_i64,
-            ExpressionDataType::Number,
+            GarnishDataType::Number,
         )
     }
 
@@ -202,7 +202,7 @@ where
             visitor,
             Data::get_number,
             V::visit_u8,
-            ExpressionDataType::Number,
+            GarnishDataType::Number,
         )
     }
 
@@ -214,7 +214,7 @@ where
             visitor,
             Data::get_number,
             V::visit_u16,
-            ExpressionDataType::Number,
+            GarnishDataType::Number,
         )
     }
 
@@ -226,7 +226,7 @@ where
             visitor,
             Data::get_number,
             V::visit_u32,
-            ExpressionDataType::Number,
+            GarnishDataType::Number,
         )
     }
 
@@ -238,7 +238,7 @@ where
             visitor,
             Data::get_number,
             V::visit_u64,
-            ExpressionDataType::Number,
+            GarnishDataType::Number,
         )
     }
 
@@ -250,7 +250,7 @@ where
             visitor,
             Data::get_number,
             V::visit_f32,
-            ExpressionDataType::Number,
+            GarnishDataType::Number,
         )
     }
 
@@ -262,7 +262,7 @@ where
             visitor,
             Data::get_number,
             V::visit_f64,
-            ExpressionDataType::Number,
+            GarnishDataType::Number,
         )
     }
 
@@ -274,7 +274,7 @@ where
             visitor,
             Data::get_char,
             V::visit_char,
-            ExpressionDataType::Char,
+            GarnishDataType::Char,
         )
     }
 
@@ -293,7 +293,7 @@ where
     {
         let (t, a) = self.value()?;
         match t {
-            ExpressionDataType::CharList => {
+            GarnishDataType::CharList => {
                 let len = self.data.get_char_list_len(a).or_else(wrap_err)?;
                 let mut s = String::with_capacity(len.into());
                 let mut i = Data::Size::zero();
@@ -310,9 +310,9 @@ where
                 visitor.visit_string(s)
             }
             // in terms of converting to Rust types, symbols can be treated as Strings if requested
-            ExpressionDataType::Symbol
-            | ExpressionDataType::Concatenation
-            | ExpressionDataType::Slice => {
+            GarnishDataType::Symbol
+            | GarnishDataType::Concatenation
+            | GarnishDataType::Slice => {
                 // need to create a CharList first
                 // may need Garnish Data trait to have a method for direct to string conversion
                 let a = self.data.add_char_list_from(a).or_else(wrap_err)?;
@@ -343,7 +343,7 @@ where
     {
         let (t, a) = self.value()?;
         match t {
-            ExpressionDataType::ByteList => {
+            GarnishDataType::ByteList => {
                 let len = self.data.get_byte_list_len(a).or_else(wrap_err)?;
                 let mut bytes = Vec::with_capacity(len.into());
                 let mut i = Data::Size::zero();
@@ -371,7 +371,7 @@ where
     {
         let (t, _a) = self.value()?;
         match t {
-            ExpressionDataType::Unit => visitor.visit_none(),
+            GarnishDataType::Unit => visitor.visit_none(),
             _ => visitor.visit_some(self),
         }
     }
@@ -382,7 +382,7 @@ where
     {
         let (t, _a) = self.value()?;
         match t {
-            ExpressionDataType::Unit => visitor.visit_unit(),
+            GarnishDataType::Unit => visitor.visit_unit(),
             t => Err(GarnishSerializationError::from(
                 format!("Expected Unit, found {:?}", t).as_str(),
             )),
@@ -486,7 +486,7 @@ where
 struct ListAccessor<'a, 'data, Data>
 where
     'data: 'a,
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Size: Into<usize>,
@@ -501,7 +501,7 @@ where
 
 impl<'a, 'data, Data> ListAccessor<'a, 'data, Data>
 where
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Size: Into<usize>,
@@ -522,9 +522,9 @@ where
     ) -> Result<Self, GarnishSerializationError<Data>> {
         let (t, a) = de.value()?;
         let items = match t {
-            ExpressionDataType::List => gather_list_items(a, de.data)?,
-            ExpressionDataType::Concatenation => gather_concat_items(a, de.data)?,
-            ExpressionDataType::Slice => {
+            GarnishDataType::List => gather_list_items(a, de.data)?,
+            GarnishDataType::Concatenation => gather_concat_items(a, de.data)?,
+            GarnishDataType::Slice => {
                 let (list_ref, range_ref) = de.data.get_slice(a).or_else(wrap_err)?;
                 let list_type = de.data.get_data_type(list_ref).or_else(wrap_err)?;
 
@@ -535,8 +535,8 @@ where
                 );
 
                 let items = match list_type {
-                    ExpressionDataType::List => gather_list_items(list_ref, de.data)?,
-                    ExpressionDataType::Concatenation => gather_concat_items(list_ref, de.data)?,
+                    GarnishDataType::List => gather_list_items(list_ref, de.data)?,
+                    GarnishDataType::Concatenation => gather_concat_items(list_ref, de.data)?,
                     t => Err(GarnishSerializationError::from(
                         format!("{:?} Slice cannot be converted to sequence.", t).as_str(),
                     ))?,
@@ -579,12 +579,12 @@ where
     }
 }
 
-fn gather_concat_items<Data: GarnishLangRuntimeData>(
+fn gather_concat_items<Data: GarnishData>(
     concat_ref: Data::Size,
     data: &Data,
 ) -> Result<Vec<Data::Size>, GarnishSerializationError<Data>>
 where
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Size: Into<usize>,
@@ -602,7 +602,7 @@ where
         };
 
         match data.get_data_type(current).or_else(wrap_err)? {
-            ExpressionDataType::Concatenation => {
+            GarnishDataType::Concatenation => {
                 let (left, right) = data.get_concatenation(current).or_else(wrap_err)?;
                 cat_stack.push(right);
                 cat_stack.push(left);
@@ -614,12 +614,12 @@ where
     Ok(items)
 }
 
-fn gather_list_items<Data: GarnishLangRuntimeData>(
+fn gather_list_items<Data: GarnishData>(
     list_ref: Data::Size,
     data: &Data,
 ) -> Result<Vec<Data::Size>, GarnishSerializationError<Data>>
 where
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Size: Into<usize>,
@@ -644,7 +644,7 @@ where
 
 impl<'a, 'data, Data> SeqAccess<'data> for ListAccessor<'a, 'data, Data>
 where
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Size: Into<usize>,
@@ -676,7 +676,7 @@ where
 
 impl<'a, 'data, Data> MapAccess<'data> for ListAccessor<'a, 'data, Data>
 where
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Size: Into<usize>,
@@ -728,7 +728,7 @@ where
 struct EnumAccessor<'a, 'data, Data>
 where
     'data: 'a,
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Size: Into<usize>,
@@ -742,7 +742,7 @@ where
 
 impl<'a, 'data, Data> EnumAccessor<'a, 'data, Data>
 where
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Size: Into<usize>,
@@ -760,7 +760,7 @@ where
 
 impl<'a, 'data, Data> EnumAccess<'data> for EnumAccessor<'a, 'data, Data>
 where
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Size: Into<usize>,
@@ -778,7 +778,7 @@ where
     {
         let (t, a) = self.de.value()?;
         let sym_a = match t {
-            ExpressionDataType::List => {
+            GarnishDataType::List => {
                 let first = self
                     .de
                     .data
@@ -796,7 +796,7 @@ where
 
                 first
             }
-            ExpressionDataType::Symbol => a,
+            GarnishDataType::Symbol => a,
             _ => Err(GarnishSerializationError::from(
                 format!("Expected List or Symbol for variant, found {:?}", t).as_str(),
             ))?,
@@ -823,7 +823,7 @@ where
 
 impl<'a, 'data, Data> VariantAccess<'data> for EnumAccessor<'a, 'data, Data>
 where
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
     Data::Size: From<usize>,
     Data::Size: Into<usize>,
@@ -878,20 +878,20 @@ mod tests {
     use serde::{Deserialize, Deserializer};
 
     use garnish_lang_simple_data::data::SimpleNumber;
-    use garnish_lang_simple_data::{DataError, SimpleRuntimeData};
-    use garnish_lang_traits::GarnishLangRuntimeData;
+    use garnish_lang_simple_data::{DataError, SimpleGarnishData};
+    use garnish_lang_traits::GarnishData;
 
     use crate::deserializer::GarnishDataDeserializer;
     use crate::error::GarnishSerializationError;
 
     fn deserialize<SetupF, Type>(
         setup: SetupF,
-    ) -> Result<Type, GarnishSerializationError<SimpleRuntimeData>>
+    ) -> Result<Type, GarnishSerializationError<SimpleGarnishData>>
     where
-        SetupF: FnOnce(&mut SimpleRuntimeData) -> Result<usize, DataError>,
+        SetupF: FnOnce(&mut SimpleGarnishData) -> Result<usize, DataError>,
         Type: DeserializeOwned + PartialEq + Debug,
     {
-        let mut data = SimpleRuntimeData::new();
+        let mut data = SimpleGarnishData::new();
         let addr = setup(&mut data).unwrap();
         data.push_value_stack(addr).unwrap();
 
@@ -902,7 +902,7 @@ mod tests {
 
     fn assert_deserializes<SetupF, Type>(setup: SetupF, expected_value: Type)
     where
-        SetupF: FnOnce(&mut SimpleRuntimeData) -> Result<usize, DataError>,
+        SetupF: FnOnce(&mut SimpleGarnishData) -> Result<usize, DataError>,
         Type: DeserializeOwned + PartialEq + Debug,
     {
         let v = deserialize::<SetupF, Type>(setup);
@@ -914,7 +914,7 @@ mod tests {
 
     fn assert_fails<SetupF, Type>(setup: SetupF)
     where
-        SetupF: FnOnce(&mut SimpleRuntimeData) -> Result<usize, DataError>,
+        SetupF: FnOnce(&mut SimpleGarnishData) -> Result<usize, DataError>,
         Type: DeserializeOwned + PartialEq + Debug,
     {
         assert!(deserialize::<SetupF, Type>(setup).is_err());
@@ -1465,7 +1465,7 @@ mod tests {
         three: i32,
     }
 
-    fn add_some_struct(data: &mut SimpleRuntimeData) -> Result<usize, DataError> {
+    fn add_some_struct(data: &mut SimpleGarnishData) -> Result<usize, DataError> {
         let sym1 = data.parse_add_symbol("one").unwrap();
         let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
         let pair1 = data.add_pair((sym1, num1)).unwrap();
@@ -1485,7 +1485,7 @@ mod tests {
         data.end_list()
     }
 
-    fn add_some_struct_as_concat(data: &mut SimpleRuntimeData) -> Result<usize, DataError> {
+    fn add_some_struct_as_concat(data: &mut SimpleGarnishData) -> Result<usize, DataError> {
         let sym1 = data.parse_add_symbol("one").unwrap();
         let num1 = data.add_number(SimpleNumber::Integer(100)).unwrap();
         let pair1 = data.add_pair((sym1, num1)).unwrap();

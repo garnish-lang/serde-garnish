@@ -1,13 +1,13 @@
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 
-use garnish_lang_traits::GarnishLangRuntimeData;
+use garnish_lang_traits::GarnishData;
 
 use crate::traits::GarnishNumberConversions;
 
 pub struct GarnishSerializationError<Data>
 where
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
 {
     message: Option<String>,
@@ -16,7 +16,7 @@ where
 
 impl<Data> GarnishSerializationError<Data>
 where
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
 {
     pub fn new(err: Data::Error) -> Self {
@@ -37,7 +37,7 @@ where
 
 impl<Data> From<&str> for GarnishSerializationError<Data>
 where
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
 {
     fn from(s: &str) -> Self {
@@ -50,7 +50,7 @@ where
 
 impl<Data> Debug for GarnishSerializationError<Data>
 where
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -60,7 +60,7 @@ where
 
 impl<Data> Display for GarnishSerializationError<Data>
 where
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -70,14 +70,14 @@ where
 
 impl<Data> Error for GarnishSerializationError<Data>
 where
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
 {
 }
 
 impl<Data> serde::ser::Error for GarnishSerializationError<Data>
 where
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
 {
     fn custom<T>(msg: T) -> Self
@@ -93,7 +93,7 @@ where
 
 impl<Data> serde::de::Error for GarnishSerializationError<Data>
 where
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
 {
     fn custom<T>(msg: T) -> Self
@@ -109,7 +109,7 @@ where
 
 pub fn wrap_err<V, Data>(e: Data::Error) -> Result<V, GarnishSerializationError<Data>>
 where
-    Data: GarnishLangRuntimeData,
+    Data: GarnishData,
     Data::Number: GarnishNumberConversions,
 {
     Err(GarnishSerializationError::new(e))
