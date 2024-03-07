@@ -551,8 +551,7 @@ where
 mod tests {
     use serde::Serializer;
 
-    use garnish_lang_simple_data::data::{SimpleData, SimpleNumber};
-    use garnish_lang_simple_data::{symbol_value, SimpleGarnishData};
+    use garnish_lang_simple_data::{symbol_value, SimpleData, SimpleGarnishData, SimpleNumber};
 
     use crate::serializer::{
         GarnishDataSerializer, OptionalBehavior, StructBehavior, VariantNameBehavior,
@@ -804,7 +803,8 @@ mod tests {
         let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new_with_options(
             &mut data,
-            GarnishSerializationOptions::new().struct_typing_behavior(StructBehavior::IncludeTyping),
+            GarnishSerializationOptions::new()
+                .struct_typing_behavior(StructBehavior::IncludeTyping),
         );
 
         let addr = serializer.serialize_unit_struct("PhantomData").unwrap();
@@ -946,9 +946,8 @@ mod tests {
 mod compound {
     use serde::Serializer;
 
-    use garnish_lang_simple_data::data::{SimpleData, SimpleNumber};
-    use garnish_lang_simple_data::{symbol_value, SimpleGarnishData};
     use crate::GarnishSerializationOptions;
+    use garnish_lang_simple_data::{symbol_value, SimpleData, SimpleGarnishData, SimpleNumber};
 
     use crate::serializer::{GarnishDataSerializer, StructBehavior, VariantNameBehavior};
 
@@ -1088,7 +1087,8 @@ mod compound {
         let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new_with_options(
             &mut data,
-            GarnishSerializationOptions::new().struct_typing_behavior(StructBehavior::IncludeTyping),
+            GarnishSerializationOptions::new()
+                .struct_typing_behavior(StructBehavior::IncludeTyping),
         );
 
         let mut serializer = serializer.serialize_tuple_struct("MyStruct", 3).unwrap();
@@ -1202,7 +1202,8 @@ mod compound {
         let mut data = SimpleGarnishData::new();
         let mut serializer = GarnishDataSerializer::new_with_options(
             &mut data,
-            GarnishSerializationOptions::new().struct_typing_behavior(StructBehavior::IncludeTyping),
+            GarnishSerializationOptions::new()
+                .struct_typing_behavior(StructBehavior::IncludeTyping),
         );
 
         let mut serializer = serializer.serialize_tuple_struct("MyTuple", 3).unwrap();

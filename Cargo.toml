@@ -1,7 +1,7 @@
 [package]
 name = "serde_garnish"
 description = "Serialization/Deserialization for use with garnish core libraries."
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Chad Collins <chad.collins@capitalone.com>"]
 edition = "2021"
 homepage = "https://github.com/garnish-lang/serde-garnish"
@@ -15,7 +15,7 @@ readme = "./README.md"
 [dependencies]
 log = "0.4"
 serde = { version = "1.0.147", features = ["derive"] }
-garnish_lang_runtime = { version = "0.0.2-alpha", path = "../garnish-core/runtime"}
-garnish_lang_compiler = { version = "0.0.2-alpha", path = "../garnish-core/compiler"}
-garnish_lang_simple_data = { version = "0.0.2-alpha", path = "../garnish-core/data"}
-garnish_lang_traits = { version = "0.0.2-alpha", path = "../garnish-core/traits"}
+garnish_lang_runtime = { version = "0.0.4-alpha" }
+garnish_lang_compiler = { version = "0.0.4-alpha" }
+garnish_lang_simple_data = { version = "0.0.4-alpha" }
+garnish_lang_traits = { version = "0.0.4-alpha" }

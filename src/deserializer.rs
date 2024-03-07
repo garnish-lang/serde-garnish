@@ -6,7 +6,7 @@ use serde::de::{
 };
 use serde::Deserializer;
 
-use garnish_lang_traits::{GarnishDataType, GarnishData, TypeConstants};
+use garnish_lang_traits::{GarnishData, GarnishDataType, TypeConstants};
 
 use crate::error::{wrap_err, GarnishSerializationError};
 use crate::GarnishNumberConversions;
@@ -46,9 +46,7 @@ where
         }
     }
 
-    pub fn value(
-        &self,
-    ) -> Result<(GarnishDataType, Data::Size), GarnishSerializationError<Data>> {
+    pub fn value(&self) -> Result<(GarnishDataType, Data::Size), GarnishSerializationError<Data>> {
         let a = *self
             .value_stack
             .last()
@@ -310,9 +308,7 @@ where
                 visitor.visit_string(s)
             }
             // in terms of converting to Rust types, symbols can be treated as Strings if requested
-            GarnishDataType::Symbol
-            | GarnishDataType::Concatenation
-            | GarnishDataType::Slice => {
+            GarnishDataType::Symbol | GarnishDataType::Concatenation | GarnishDataType::Slice => {
                 // need to create a CharList first
                 // may need Garnish Data trait to have a method for direct to string conversion
                 let a = self.data.add_char_list_from(a).or_else(wrap_err)?;
@@ -877,8 +873,7 @@ mod tests {
     use serde::de::{DeserializeOwned, Error, Visitor};
     use serde::{Deserialize, Deserializer};
 
-    use garnish_lang_simple_data::data::SimpleNumber;
-    use garnish_lang_simple_data::{DataError, SimpleGarnishData};
+    use garnish_lang_simple_data::{DataError, SimpleGarnishData, SimpleNumber};
     use garnish_lang_traits::GarnishData;
 
     use crate::deserializer::GarnishDataDeserializer;
