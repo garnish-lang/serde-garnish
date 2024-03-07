@@ -45,24 +45,17 @@
 /// | external_value    | External          | ?                                                                     |
 /// | custom_type       | Custom            | ?                                                                     |
 ///
-
-
 mod deserializer;
-mod deserialize;
-mod serializer;
-mod serialize;
-mod visitor;
 mod error;
-mod traits;
 mod options;
+mod serializer;
+mod traits;
 
-pub use options::*;
-pub use traits::*;
-pub use serializer::*;
 pub use deserializer::GarnishDataDeserializer;
 pub use error::GarnishSerializationError;
+pub use options::*;
+pub use serializer::*;
+pub use traits::*;
 
 #[cfg(test)]
-mod tests {
-
-}
+mod tests {}

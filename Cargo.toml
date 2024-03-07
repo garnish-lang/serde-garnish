@@ -15,7 +15,9 @@ readme = "./README.md"
 [dependencies]
 log = "0.4"
 serde = { version = "1.0.147", features = ["derive"] }
+garnish_lang_traits = { version = "0.0.4-alpha" }
+
+[dev-dependencies]
 garnish_lang_runtime = { version = "0.0.4-alpha" }
 garnish_lang_compiler = { version = "0.0.4-alpha" }
 garnish_lang_simple_data = { version = "0.0.4-alpha" }
-garnish_lang_traits = { version = "0.0.4-alpha" }
